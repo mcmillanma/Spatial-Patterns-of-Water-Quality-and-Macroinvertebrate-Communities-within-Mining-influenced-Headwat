@@ -6,34 +6,52 @@
 # shannon, total richness, %5 Dominant Taxa, predator richness, scraper richness; 
 # Water) SC, Se, SO4:HCO3; Ca:Mg ; Habitat) watershed size, stream gradient, LCF
 
-install.packages("lmerTest")
+#install.packages("lmerTest")
 library(lmerTest)
 library(ggplot2)
 library(ggpubr)
+library(dplyr)
 
 metrics <- read.csv("metrics.f21.csv")
 chem <- read.csv("chem.f21-S22.csv")
-chem <- filter( chem, season == "Fall") 
-reg2 <- left_join(metrics, chem, by = c("Site" = "site.id"))
+chem <- chem %>%
+  mutate("ratiocamg" = ca.mgl / mg.mgl) %>%
+  mutate ("ratioso4hco3" = so4.mgl /hco3.mgl)
+chem <- dplyr::filter(chem, season == "Fall") 
+hab <- read.csv("habitatmaster.csv")
+reg2 <- left_join(metrics, chem, by = "Site") 
+reg2 <- left_join(reg2, hab, by = "Site")
 
-scxEPTrich <- ggplot(reg2,aes(x=sc.uScm,y=rich.E, group = Stream))+
+# Top insect metrics: rich.SC, rich.EPT, rich.E.less.B, p5dom, Hshannon
+# Top water quality metrics: sc.uScm, se.ugl, ca/mg, so4/hco3
+# Top habitat metrics: LCF, avg.slope, avgembedd, pfines
+
+EPTrichxse <- ggplot(reg2,aes(x=se.ugl, y=rich.EPT, group = Stream))+
   geom_point(aes(color=Stream, pch = Stream))+
-  geom_line(aes(color=Stream, pch = Stream)) +
+  # geom_jitter() +
+  stat_smooth(method = "lm", linetype = 2) +
   stat_cor(method = "spearman",
-           label.y = 8) +
-  stat_regline_equation(label.y = 0.6) +
-  ylim(0,8) +
-  xlim(0, 2500) +
+           label.y = 25) +
+  stat_regline_equation(label.y = 24) + #label.y = 
+  #ylim(0,8) +
+  #xlim(0, 2500) +
   theme_classic(base_size = 15, )+
-  xlab("SC (uS/cm)") +
-  ylab("Mayfly Richness") +
-  ggtitle("Mayfly Richness vs Specific Conductance")+
+  xlab("Se (ug/L)") +
+  ylab("EPT richness") +
+  ggtitle("EPT richness vs Selenium")+
   theme(plot.title = element_text(hjust = 0.5, size = 15, face = "bold"))+
   facet_wrap("Stream") +
   theme(legend.position = "none") +
   theme_classic()
+EPTrichxse
 
-scxEPTrich
+
+#set size and save plot as png
+png("EPTrichxse.png", width = 900, height = 450)
+plot(EPTrichxse)
+dev.off()
+
+#create correlation matrix
 
 
 #PART 2 
