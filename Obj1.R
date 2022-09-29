@@ -4,6 +4,77 @@
 # PART 2: What is changing? Use step-wise multiple regression to determine which bug 
 # metrics and/or taxa are (or are not) shifting in each stream.
 
+library(dplyr)
+#create table of means, sd, pairwise for each streams insect metrics 
+library(tidyr)
+
+metrics <- read.csv("metrics.f21.csv")
+metrics <- metrics %>%
+  select(c(2, 6:69)) 
+habitat_raw <- read.csv("habitatmaster.csv")
+habitat <- habitat_raw %>%
+  select(c( 1, 7:34)) 
+chem <- read.csv("chem.f21-s22.notrib.csv") %>%
+  filter( season == "Fall") %>%
+  select(c( 1, 5:48)) 
+
+
+# create table of means and standard deviations
+table <- habitat %>% group_by(Stream) %>% 
+  summarize_all(list(mean = ~mean(.), sd = ~sd(.)))
+table <- pivot_longer(table, cols = c(pfines_mean:avgcancov_sd))
+table <- pivot_wider(table, names_from = Stream)
+
+library(ggpubr)
+library(tidyverse)
+library(broom)
+
+#one.way <- aov(rich.E ~ Stream, data = metrics)
+#summary(one.way)
+
+#seperate metrics by site and join all together at end?
+
+a.results <- NULL;
+for(i in 2:ncol(chem))
+{
+  
+  column <- names(chem[i])
+  #tidy will summarise and return neat format
+  avz <- broom::tidy(kruskal.test(chem[,i] ~ Stream, data = chem))
+  
+  # Add this condition if you only want aov with P < 0.05 printed
+  #if(avz$p.value[1] < 0.05) {
+  
+  
+  a.results <- rbind(a.results, avz) # results <- print(column) #metrics <- cbind(metrics, column)
+  # results <- print(avz) #metrics <- cbind(metrics, avz) 
+}
+
+#a.results <- filter(a.results, term != "Residuals") only needed for anova
+
+a.chem <- pivot_longer(chem, cols = do.mgl:so4.hco3)
+a.chem <- a.chem[c(1:44),]
+
+a.results$Metric <- a.chem$name
+write.csv(a.results, file="stream.kruskal.chem.csv", sep = ",")
+
+a.results <- filter(a.results, p.value < 0.05) 
+
+#will compile files in excel (saved as Obj1.stream.means&anova)
+#write.csv(table, file="stream.means.csv", sep = ",")
+#write.csv(a.results, file="stream.anova.csv", sep = ",")
+
+#correlation matrix of distances to bug metrics
+dis.simm <- read.csv("dis.simm.f21.csv") %>%
+  filter(START %in% c("CRO-1", "EAS-1", "FRY-1", "LLW-1", "SPC-1", "ROL-1"))
+metrics <- read.csv("metrics.f21.csv")
+bug.dist.cor <- left_join(metrics, dis.simm, by = c("Site" = "End"))
+#bug.dist.cor <- left_join(bug.dist.cor, chem, by = "Site" ) # for sc to distance graph
+
+library(corrplot)
+x <- cor(bug.dist.cor[5:56, 59:68, 72])
+corrplot(x, type="upper", order="hclust")
+
 ### PART 1
 # CREATE INSECT DISSIMILARITY INDEX
 # Bryan Brown (VT) quantitative analysis script 2021
@@ -38,7 +109,7 @@ for(k in 1:length(Stream.list)){
 
 #PLOT INSECT DISSIMILARITY INDEX VS EUCLIDIAN DISTANCE
 
-dis.simm <- read_csv("dis.simm.f21.csv") 
+dis.simm <- read.csv("dis.simm.f21.csv") 
 Similar$dis.simm <- dis.simm$dis.simm
 Similar <- filter(Similar, SIM != 1) 
 
