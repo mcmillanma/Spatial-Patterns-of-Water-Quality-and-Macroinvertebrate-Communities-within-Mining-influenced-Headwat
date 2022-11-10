@@ -17,19 +17,14 @@ library(ggplot2)
 
 
 # Input:        'bugs.temp'  Data frame; Bug data matrix, raw abundance only (sample rows x taxon columns) \
-bugs <- read_csv("bugID.f21.csv")
-tribs <- c("FRY-T3", "CRO-T1", "CRO-T2", "LLW-T1", "LLW-T2", "SPC-T2",
-           "SPC-T3","SPC-T4","ROL-T1", "ROL-T2", "LLW-T3", "FRY-T1", 
-           "FRY-T2", "EAS-T1", "CRO-T3")
-bugs <- bugs[ ! bugs$Site %in% tribs, ]
-taxa <- read_csv("taxa.list.f21.csv")
+bugs <- read_csv("bugid.csv")
+taxa <- read_csv("taxa.list.csv")
 gen.func <- read_csv("taxa.traits.csv")
 chem <- NULL
-chem <- read_csv("chem.f21-S22.csv")
-chem <- chem[! chem$site.id %in% tribs, ]
+chem <- read_csv("chem.f21-s22.notrib.csv")
 chem <- chem %>%
-  mutate("ca/mg" = ca.mgl / mg.mgl) %>%
-  mutate ("so4/hco3" = so4.mgl /hco3.mgl)
+  mutate("ca..mg" = ca.mgl / mg.mgl) %>%
+  mutate ("so4..hco3" = so4.mgl /hco3.mgl)
 #STREAM <- select(bugs, Site, Stream)
 #chem <- left_join(chem, STREAM, by = c( "site.id" = "Site"))
 
@@ -38,7 +33,7 @@ chem <- chem %>%
 # Output:       'metrics.temp'  Data frame; need to merge with sample info from full data frame
 
 end_col <- ncol(bugs)
-bugs.temp<- (bugs[,c(7:end_col)])
+bugs.temp<- (bugs[,c(3:end_col)])
 genera <- names(bugs.temp) # List of taxa found in bugs.temp
 metrics.temp <- NULL  # Initialize metrics.temp data frame
 
@@ -47,15 +42,15 @@ totind <- rowSums(bugs.temp)
 metrics.temp <- data.frame(totind)
 
 #abundance
-abund<-rowSums(bugs[,c(7:end_col)])
-metrics.temp$abund<- abund
+#abund<-rowSums(bugs[,c(7:end_col)])
+#metrics.temp$abund<- abund
 
 #shannon
-Hshannon <- diversity(bugs.temp,1,index="shannon")
+Hshannon <- diversity(bugs.temp,index="shannon")
 metrics.temp$Hshannon<-Hshannon 
 
 #Hsimpson
-Hsimpson<- diversity(bugs.temp,1,index="simpson")
+Hsimpson<- diversity(bugs.temp,index="simpson")
 metrics.temp$Hsimpson<-Hsimpson
 
 # GENUS RICHNESS of ALL TAXA ---------------------------------------------------------
@@ -308,17 +303,17 @@ metrics.temp$rich.Swimm <- rich.Swimm
 metrics.temp$pSwimm <- round(pSwimm,1)
 
 # Diversity metrics -------------------------------------
-div.mat <- bugs.temp
-div.shan <- diversity(div.mat, index='shannon')
-div.simp <- diversity(div.mat, index='simpson')
-metrics.temp$div.shan <- round(div.shan,3)
-metrics.temp$div.simp <- round(div.simp,3)
+#div.mat <- bugs.temp
+#div.shan <- diversity(div.mat, index='shannon')
+#div.simp <- diversity(div.mat, index='simpson')
+#metrics.temp$div.shan <- round(div.shan,3)
+#metrics.temp$div.simp <- round(div.simp,3)
 
 
 # Evenness metrics -----
 # Pielou
-even.pielou <- div.shan / log(rich)
-metrics.temp$even.pielou <- round(even.pielou,4)
+#even.pielou <- div.shan / log(rich)
+#metrics.temp$even.pielou <- round(even.pielou,4)
 
 # INTOLERANT Richness -----------------
 INT.taxa <- gen.func$taxon[gen.func$tv <= 3]
@@ -349,7 +344,7 @@ metrics.temp$pTOL <- round(pTOL,digits=5)
 tribs <- c("FRY-T3", "CRO-T1", "CRO-T2", "LLW-T1", "LLW-T2", "SPC-T2", "SPC-T3", "SPC-T4","ROL-T1", "ROL-T2", "LLW-T3", "FRY-T1", 
            "FRY-T2", "EAS-T1", "CRO-T3")
 metrics.temp$Site<-bugs$Site
-metrics.temp$Stream<-bugs$Stream
+metrics.temp$Season<-bugs$Season
 metrics.temp$Stream_Type <- bugs$type
 
 
@@ -360,7 +355,7 @@ metrics.temp$Stream_Type <- bugs$type
   
 
 #save metrics as .csv
-#write.csv(metrics.temp, file="metrics.f21.csv", sep = ",")
+write.csv(metrics.temp, file="shannon.f21-s22.csv", sep = ",")
 
 # Experimenting with ANOVA
 #install.packages("ggpubr")

@@ -2,6 +2,7 @@ taxon,tv,ffg,habit
 Acentrella,4,CG,SW
 Acerpenna,4,SH,SW
 Acroneuria,1,PR,CN
+Adicrophleps,NA,NA,CN
 Agapetus,2,SC,CN
 Allocapnia,1,SH,CN
 Allognosta,8,CG,SP
@@ -24,6 +25,7 @@ Bezzia.Palpomyia,6,PR,BU
 Boyeria,2,PR,CN
 Brachycentrus,2,CF,CN
 Calopteryx,5,PR,CB
+Ceraclea,4,CG,CN
 Ceratopsyche,1,CF,CN
 Cernotina,4,PR,CN
 Chelifera,4,CG,SP
@@ -122,6 +124,8 @@ Polycentropus,4,PR,CN
 Prosimulium,7,CF,CN
 Prostoia,2,SH,SP
 Psephenus,4,SC,CN
+Pseudosmittia,NA,NA,NA
+Pseudostenophylax,1,CG,SP
 Pseudostenophylax,2,SH,SP
 Pteronarcys,2,SH,CN
 Pycnopsyche,2,SH,SP

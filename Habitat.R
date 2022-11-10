@@ -21,9 +21,9 @@ library(tidyr)
 library("vegan")
 library("ggpubr")
 
-pebraw <- read_csv("pebblecounts.csv")
-pebraw <- select(pebraw, c(1:15))
-peb <- pivot_longer(pebraw, c(2:15)) 
+pebraw <- read_csv("pebblecounts.csv") 
+pebraw <- select(pebraw, c(1:16))
+peb <- pivot_longer(pebraw, c(2:16)) 
 num <- as.numeric(peb$name)
 peb$pebble_size <- num
 
@@ -39,6 +39,7 @@ ggplot(peb, aes(x = name, y = percent, fill = Site, position = "dodge")) +
 
 # creating quantiles
 pebquartiles <- peb %>%
+  drop_na() %>%
   uncount(value) %>% #function has each size pebble show up as many times as it occurs
   group_by(Site) %>%
   summarise(D10 = quantile( pebble_size, .10, na.rm = TRUE ),
@@ -57,21 +58,23 @@ pebquartiles <- pebquartiles %>%
 # Start by dividing the data into categories
 
 pebcat<- peb %>%
-  mutate(category = case_when(pebble_size <= 2 ~ "fines",
-                              pebble_size > 2 &
-                                pebble_size <= 64 ~ "pebbles",
-                              pebble_size > 64 & 
-                                pebble_size <= 128  ~ "smallcobble",
-                              pebble_size > 128 ~ "largecobble"))
+  mutate(category = case_when(pebble_size <= 4 ~ "fines",
+                                pebble_size > 4 &
+                              pebble_size < 64 ~ "pebbles", 
+                                pebble_size >= 64 &
+                              pebble_size < 128  ~ "smallcobble", 
+                                pebble_size >= 128 &
+                              pebble_size <= 4000 ~ "largecobble"))
+         
 # determine percents
-peb2 <- aggregate(value ~ category + Site, data = pebcat, FUN = sum, na.rm = TRUE) %>%
+peb2adj <- aggregate(value ~ category + Site, data = pebcat, FUN = sum, na.rm = TRUE) %>%
   pivot_wider(names_from = category, values_from = value) %>%
   mutate(pfines = (fines/(largecobble + pebbles + smallcobble +fines)) * 100,
-        ppebbles = (pebbles/(largecobble + fines + smallcobble + pebbles)) * 100,
-        psmallcobble = (smallcobble/(largecobble + pebbles + fines + smallcobble)) * 100,
+        ppebbles = (pebbles/(largecobble + fines + smallcobble + pebbles )) * 100,
+        psmallcobble = (smallcobble/(largecobble + pebbles + fines + smallcobble )) * 100,
         plargecobble = (largecobble/(fines + pebbles + smallcobble + largecobble)) * 100)
 # next determine smallcobble:fines and largecobble:fines
-  peb2 <- peb2 %>% 
+  peb2adj <- peb2adj %>% 
     mutate(LCF = plargecobble/pfines,
        SCF = psmallcobble/pfines)
   
@@ -80,15 +83,16 @@ peb2 <- aggregate(value ~ category + Site, data = pebcat, FUN = sum, na.rm = TRU
   Hsimpson<- diversity(pebraw2, index="simpson")
 
 #join peb2, pebquartiles, and Hsimpson
-  habitatmaster <- left_join(peb2, pebquartiles, by = "Site")
-habitatmaster$Hsimpson<-Hsimpson
+  peb2adj$Hsimpson<- Hsimpson
+  habitatmaster <- left_join(peb2adj, pebquartiles, by = "Site")
+
 
 # transect <- read_csv("habtransect.csv")
 habitatmaster <- read_csv("habitatmaster.csv")
 distance <- read_csv("distance.csv")
 habitatmaster <- left_join( habitatmaster, distance , by = c("Site" = "site"))
     
-#write.csv(habitatmaster, file="habitatmaster.csv", sep = ",")
+write.csv(habitatmaster, file="habitatmasteradj.csv", sep = ",")
  
 ggplot(habitatmaster, aes(x = dist.d, y = D25, colour = Stream )) +
   geom_line() +
