@@ -73,12 +73,12 @@ bug.dist.cor <- left_join(metrics, dis.simm, by = c("Site" = "End"))
 library(dplyr)
 
 # prepare data to be used (sc and all metrics)
-c.df <- read.csv("metrics.f21-s22.csv") #%>%
-  filter( Season == "Fall")
-chem <- read.csv("chem.f21-S22.csv") %>%
+c.df <- read.csv("metrics.f21-s22.csv") %>%
+  filter( Season == "Spring")
+chem <- read.csv("chem.f21-S22.notrib.csv") %>%
   filter( season == "Spring")
-c.df <- left_join(c.df, chem, by = "Site")
-c.df <- select(c.df, c(1, 3, 7:65, 72))
+c.df <- left_join(c.df, chem, by = c("Site","Season" = "season", "Stream", "dist.d"))
+c.df <- select(c.df, c(7:65, 70)) # 3 is dist, 70 is sc
 
 # Split by stream and determine if data is normal use rcorr instead of cor to get p and cor value values
 
@@ -86,20 +86,21 @@ library(tibble)
 library(Hmisc) #rcorr()
 
 #CRO
-CRO <- filter(c.df, Stream.x == "CRO") %>%
-  select(c(3:62))
+CRO <- filter(c.df, Stream == "CRO (R)") %>%
+  select(c(2:61))
 cro <- rcorr(as.matrix(CRO), type = "spearman")
 cro.r = data.frame(cro$r) %>%
-  select("sc.uScm")
+  select("dist.d")
 cro.p = data.frame(cro$P) %>%
-  select("sc.uScm")
+  select("dist.d")
 cro <- NULL
-cro$p.spring <- cro.p$sc.uScm
+cro$p.spring <- cro.p$dist.d
 cro$metrics <- cro.p$rownames
-cro$r.spring <- cro.r$sc.uScm
+cro$r.spring <- cro.r$dist.d
 cro <- as.data.frame(cro)
 rownames <- rownames(cro.p)
 cro <- add_column(cro, rownames)
+cro <- filter(cro, p.spring <= 0.05)
 
 #set.seed(123)
 #norm.cro <- apply(cro,2,shapiro.test)
@@ -111,73 +112,92 @@ cro <- add_column(cro, rownames)
 #filter(norm.cro, test == "Pearson")
 
 #EAS
-EAS <- filter(c.df, Stream.x == "EAS") %>%
-  select(c(3:62))
+EAS <- filter(c.df, Stream == "EAS (R)") %>%
+  select(c(2:61))
 eas <- rcorr(as.matrix(EAS), type = "spearman")
 eas.r = data.frame(eas$r) %>%
-  select("sc.uScm")
+  select("dist.d")
 eas.p = data.frame(eas$P) %>%
-  select("sc.uScm")
+  select("dist.d")
 eas <- NULL
-eas$p.spring <- eas.p$sc.uScm
+eas$p.spring <- eas.p$dist.d
 eas$metrics <- eas.p$rownames
-eas$r.spring <- eas.r$sc.uScm
+eas$r.spring <- eas.r$dist.d
 eas <- as.data.frame(eas)
 rownames <- rownames(eas.p)
 eas <- add_column(eas, rownames)
+eas <- filter(eas, p.spring <= 0.05)
 
 #FRY
-FRY <- filter(c.df, Stream.x == "FRY") %>%
-  select(c(3:62))
+FRY <- filter(c.df, Stream == "FRY (MI)") %>%
+  select(c(2:61))
 fry <- rcorr(as.matrix(FRY), type = "spearman")
 fry.r = data.frame(fry$r) %>%
-  select("sc.uScm")
+  select("dist.d")
 fry.p = data.frame(fry$P) %>%
-  select("sc.uScm")
+  select("dist.d")
 fry <- NULL
-fry$p.spring <- fry.p$sc.uScm
+fry$p.spring <- fry.p$dist.d
 fry$metrics <- fry.p$rownames
-fry$r.spring <- fry.r$sc.uScm
+fry$r.spring <- fry.r$dist.d
 fry <- as.data.frame(fry)
 rownames <- rownames(fry.p)
 fry <- add_column(fry, rownames)
+fry <- filter(fry, p.spring <= 0.05)
 
 #LLW
-LLW <- filter(c.df, Stream.x == "LLW") %>%
-  select(c(3:62))
+LLW <- filter(c.df, Stream == "LLW (MI)") %>%
+  select(c(2:61))
 llw <- rcorr(as.matrix(LLW), type = "spearman")
 llw.r = data.frame(llw$r) %>%
-  select("sc.uScm")
+  select("dist.d")
 llw.p = data.frame(llw$P) %>%
-  select("sc.uScm")
+  select("dist.d")
 llw <- NULL
-llw$p.spring <- llw.p$sc.uScm
+llw$p.spring <- llw.p$dist.d
 llw$metrics <- llw.p$rownames
-llw$r.spring <- llw.r$sc.uScm
+llw$r.spring <- llw.r$dist.d
 llw <- as.data.frame(llw)
 rownames <- rownames(llw.p)
 llw <- add_column(llw, rownames)
+llw <- filter(llw, p.spring <= 0.05)
 
 #ROL
-ROL<- filter(c.df, Stream.x == "ROL") %>%
-  select(c(3:62))
+ROL<- filter(c.df, Stream == "ROL (MI)") %>%
+  select(c(2:61))
 rol <- rcorr(as.matrix(ROL), type = "spearman")
 rol.r = data.frame(rol$r) %>%
-  select("sc.uScm")
+  select("dist.d")
 rol.p = data.frame(rol$P) %>%
-  select("sc.uScm")
+  select("dist.d")
 rol <- NULL
-rol$p.spring <- rol.p$sc.uScm
+rol$p.spring <- rol.p$dist.d
 rol$metrics <- rol.p$rownames
-rol$r.spring <- rol.r$sc.uScm
+rol$r.spring <- rol.r$dist.d
 rol <- as.data.frame(rol)
 rownames <- rownames(rol.p)
 rol <- add_column(rol, rownames)
+rol <- filter(rol, p.spring <= 0.05)
 
 #SPC
-SPC<- filter(c.df, Stream.x == "SPC") %>%
-  select(c(3:62))
+SPC<- filter(c.df, Stream == "SPC (MI)") %>%
+  select(c(2:61))
 spc <- rcorr(as.matrix(SPC), type = "spearman")
+spc.r = data.frame(spc$r) %>%
+  select("dist.d")
+spc.p = data.frame(spc$P) %>%
+  select("dist.d")
+spc <- NULL
+spc$p.spring <- spc.p$dist.d
+spc$metrics <- spc.p$rownames
+spc$r.spring <- spc.r$dist.d
+spc <- as.data.frame(spc)
+rownames <- rownames(spc.p)
+spc <- add_column(spc, rownames)
+spc <- filter(spc, p.spring <= 0.05)
+
+#Global
+spc <- rcorr(as.matrix(c.df), type = "spearman")
 spc.r = data.frame(spc$r) %>%
   select("sc.uScm")
 spc.p = data.frame(spc$P) %>%
@@ -189,12 +209,18 @@ spc$r.spring <- spc.r$sc.uScm
 spc <- as.data.frame(spc)
 rownames <- rownames(spc.p)
 spc <- add_column(spc, rownames)
+spc <- filter(spc, p.spring <= 0.05)
 
 # join correlations
-cor.scxstream <- left_join(eas, cro, by = "rownames") %>%
-  left_join(llw, by = "rownames") %>%
-  left_join(spc, by = "rownames") %>%
-  left_join(rol, by = "rownames") %>%
-  left_join(fry, by = "rownames") 
-write.csv(cor.scxstream, file="cor.sc.metric.stream.f21.csv", sep = ",")
+cor.scxstream <- full_join(eas, cro, by = "rownames") %>%
+  full_join(llw, by = "rownames") %>%
+  full_join(spc, by = "rownames") %>%
+  full_join(rol, by = "rownames") %>%
+  full_join(fry, by = "rownames") 
+write.csv(cor.scxstream, file="cor.dist.metric.stream.<0.05.s22.csv", sep = ",")
+
+
+
+
+
 

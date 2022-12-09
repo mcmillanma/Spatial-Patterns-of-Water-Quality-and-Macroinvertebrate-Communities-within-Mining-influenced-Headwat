@@ -1,28 +1,29 @@
 #Redundancy Analysis
 # https://r.qcbs.ca/workshop10/book-en/exploration.html
 library(vegan)
+library(ggplot2)
 library(dplyr)
 library(tidyverse)
 
 com <- read.csv("bugid.csv")  %>%
-  filter(Season == "Spring")%>%
-  #filter(Site != "ROL1" ) %>% # For Spring
-  select(-c(Season, Site))
+  filter(Season == "Spring") %>%
+  #filter(Stream == "CRO") %>%
+  select(-c(Season, Site, Stream))
 com <- com[, colSums(com != 0, na.rm = TRUE) > 0]
 
-chem <- read.csv("chem.f21-s22.notrib.csv") %>%
+chem <- read.csv("chem.f21-s22.notrib.reduced.csv")%>%
   filter(season == "Spring") %>%
-  #filter(Site != "SPC6" ) %>% #For Fall
-  select(  do.mgl:so4.hco3) 
+  #filter(Stream == "ROL (MI)") %>%
+  #filter(Stream == "CRO") %>%
+  select(-c("Stream", Site:season))
 chem <- chem[, colSums(chem != 0, na.rm = TRUE) > 0] 
 springrow <-  read.csv("chem.f21-s22.notrib.csv") %>%
   filter(season == "Spring") %>%
-  #filter(Site != "SPC6" ) %>% #For Fall
-  select( Stream) 
+  select(Stream) 
 
-hab <- read.csv("habitatmasteradj.csv") %>%
-  #filter(Site != "EAS1" & Site != "EAS9" & Site !="LLW6" ) %>%
-  select(-c(Site:smallcobble)) 
+hab <- read.csv("habitatmaster.csv") %>%
+  filter(Stream == "LLW (MI)") %>%
+  select(-c(Stream:smallcobble)) 
   
 
 #Examine Community Data
@@ -37,6 +38,7 @@ spe.hel <- decostand(com, method = "hellinger")
 
 # Examine environmental data
 # We can visually look for correlations between variables:
+
 heatmap(abs(cor(chem)), 
         # Compute pearson correlation (note they are absolute values)
         col = rev(heat.colors(6)), 
@@ -47,6 +49,7 @@ legend("topright",
        y.intersp = 0.7, bty = "n",
        fill = rev(heat.colors(6)))
 # Scale and center variables
+chem <- chem %>% select(do.mgl:so4.hco3)
 chem.z <- decostand(chem, method = "standardize",  na.rm =TRUE)
 chem.z <- chem.z %>%
   select_if(~ ! any(is.na(.)))
@@ -69,6 +72,7 @@ legend("topright",
 
 habheat
 # Scale and center variables
+hab <- select(hab, -c(Stream))
 hab.z <- decostand(hab, method = "standardize", na.rm =TRUE)
 hab.z <- hab.z[, colSums(hab.z != 0, na.rm = TRUE) > 0]
 
@@ -76,115 +80,34 @@ hab.z <- hab.z[, colSums(hab.z != 0, na.rm = TRUE) > 0]
 round(apply(hab.z, 2, mean), 1)
 apply(hab.z, 2, sd)
 
-#Begin RDA
-# Model the effect of all environmental variables on fish
-# community composition
+hab.z$Stream <- springrow$Stream
 
-spe.rda <- rda(spe.hel ~ ., data = chem.z)
-summary(spe.rda.signif)
-test <- summary(spe.rda.signif)
-centroids <- as.data.frame(test$centroids)
-centroids <- rownames_to_column(centroids, "VALUE")
+env <- left_join(chem, hab, by = "Site") %>%
+  select(-c(Stream.x:season, Stream.y:smallcobble))
+env.z <- decostand(env, method = "standardize", na.rm =TRUE)
+env.z <- env.z[, colSums(env.z != 0, na.rm = TRUE) > 0]
 
-ggplot(centroids, aes(RDA1, RDA2, color = VALUE))+
-  geom_point()
+round(apply(env.z, 2, mean), 1)
+apply(env.z, 2, sd)
+# row 32 NA needs removed
+env.z <- env.z[-c(32),]
+spe.hel <- spe.hel[-c(32),]
 
-# Forward selection of variables:
-fwd.sel <- ordiR2step(rda(spe.hel ~ 1, data = chem.z), # lower model limit (simple!)
-                      scope = formula(spe.rda), # upper model limit (the "full" model)
-                      direction = "forward",
-                      R2scope = TRUE, # can't surpass the "full" model's R2
-                      pstep = 1000,
-                      trace = FALSE) # change to TRUE to see the selection process!
 
-fwd.sel$call
-spe.rda.signif <- rda(formula = spe.hel ~ Stream + ca.mg + ba.ugl + mg.mgl + sc.uScm + 
-      co.ugl + u.ugl + cd.ugl + ni.ugl + al.ugl + temp.C + cl.mgl, 
-    data = chem.z) # when grouped by stream
-
-#spe.rda.signif <- rda(formula = spe.hel ~ ba.ugl + v.ugl + ti.ugl + na.mgl + so4.hco3 + 
-                        k.mgl + ca.mg + cl.mgl + ac.uScm + sr.ugl + mn.ugl + npoc.mgl, 
-                      data = chem.z)
-
-#spe.rda.signif <- rda(formula = spe.hel ~ pfines + D50 + avgcancov + avgwetwidth + avgembedd, data = hab.z)
-
-spe.rda.signif <- rda(formula = spe.hel ~ pfines + D16 + avgcancov + D84 + avgwetwidth, data = hab.z) # habitat adj fines 2-4 and largecobble <4000
-
-#spe.rda.signif <- rda(formula = spe.hel ~ ppebbles + pfines + D16, data = hab.z)# habitat adj fines 2-4 and largecobble <bedrock
-
-anova.cca(spe.rda.signif, step = 1000)
-RsquareAdj(spe.rda.signif)
-
-# Type 1 scaling
-ordiplot(spe.rda.signif, scaling = 1, type ='text')
-
-# Type 2 scaling
-ordiplot(spe.rda.signif, scaling = 2, type = "text")
-
-# Custom triplot code!
-
-## extract % explained by the first 2 axes
-perc <- round(100*(summary(spe.rda.signif)$cont$importance[2, 1:2]), 2)
-
-## extract scores - these are coordinates in the RDA space
-sc_si <- scores(spe.rda.signif, display="sites", choices=c(1,2), scaling=1)
-sc_sp <- scores(spe.rda.signif, display="species", choices=c(1,2), scaling=1)
-sc_bp <- scores(spe.rda.signif, display="bp", choices=c(1, 2), scaling=1)
-
-## Custom triplot, step by step
-
-# Set up a blank plot with scaling, axes, and labels
-plot(spe.rda.signif,
-     scaling = 1, # set scaling type 
-     type = "none", # this excludes the plotting of any points from the results
-     frame = FALSE,
-     # set axis limits
-     xlim = c(-1,1), 
-     ylim = c(-1,1),
-     # label the plot (title, and axes)
-     main = "Triplot RDA - scaling 1",
-     xlab = paste0("RDA1 (", perc[1], "%)"), 
-     ylab = paste0("RDA2 (", perc[2], "%)") 
-)
-
-# add points for site scores
-points(sc_si, 
-       pch = 21, # set shape (here, circle with a fill colour)
-       col = "black", # outline colour
-       bg = "steelblue", # fill colour
-       cex = 1.2) # size
-# add points for species scores
-points(sc_sp, 
-       pch = 22, # set shape (here, square with a fill colour)
-       col = "black",
-       bg = "#f2bd33", 
-       cex = 1.2)
-points("sites", color = Stream)
-# add text labels for species abbreviations
-text(sc_sp + c(0.03, 0.09), # adjust text coordinates to avoid overlap with points 
-     labels = rownames(sc_sp), 
-     col = "grey40", 
-     font = 2, # bold
-     cex = 0.6)
-# add arrows for effects of the expanatory variables
-arrows(0,0, # start them from (0,0)
-       sc_bp[,1], sc_bp[,2], # end them at the score value
-       col = "red", 
-       lwd = 3)
-# add text labels for arrows
-text(x = sc_bp[,1] -0.1, # adjust text coordinate to avoid overlap with arrow tip
-     y = sc_bp[,2] - 0.03, 
-     labels = rownames(sc_bp), 
-     col = "red", 
-     cex = 1, 
-     font = 2)
-
+# VARIATION PARTITIONING
 #### Sokol's Variation partitioning tutorial
 library("geosphere")
 library(sp)
+library(sf)
 
 spring.xy <- read.csv("spring_coord_notrib.csv") %>%
-  select(-c("Site"))
+#filter(Site != "EAS9") %>%
+#filter(Site != "FRY8")%>%
+#filter(Site != "FRY9")%>%
+#filter(Site != "ROL7") %>%
+  #filter(Site != "SPC6") %>%
+  filter(Stream == "SPC (MI)") %>%
+  select(-c("Stream","Site"))
 
 site.loc.sp = sp::SpatialPointsDataFrame(coords = data.frame(spring.xy$x, 
                                                              spring.xy$y),
@@ -218,10 +141,15 @@ spring.xy <- site.xy %>%
 mod.pcnm <- pcnm( dist(spring.xy) )
 vectors.pcnm <- data.frame(mod.pcnm$vectors)
 
-ordisurf(spring.xy, scores(mod.pcnm, choi=1), bubble = 4, main = "PCNM 1")
+#specified knts, implications?
+ordisurf(spring.xy, scores(mod.pcnm, choi=1), bubble = 4,knots = 5, main = "PCNM 1")
 
 ordisurf(spring.xy, scores(mod.pcnm, choi=13), bubble = 4, main = "PCNM 13")
 
+com <- read.csv("bugid.csv")  %>%
+  filter(Season == "Spring") %>%
+  filter( Stream == "SPC (MI)") %>%
+  select(-c(Stream:Site))
 com.hel <- decostand( com, "hel")
 
 # Space
@@ -232,59 +160,348 @@ d.space.scaled <- data.frame( scale(d.space) )
 #center spatial variables on 0, and standardize
 # null model with intercept
 mod.0 <- rda( com.hel ~ 1, data = d.space.scaled)
+plot(mod.1)
+anova.cca(mod.1)
 
 # model with all spatial variables included
 mod.1 <- rda( com.hel ~ ., data = d.space.scaled)
 
  #stepwise selection of the best model
-mod.best <- ordiR2step(mod.0, scope = mod.1 )
+mod.best <- ordiR2step(rda( com.hel ~1, data = d.space.scaled), scope = formula(mod.1),  
+                       direction = "forward",
+                       R2scope = FALSE, # can't surpass the "full" model's R2
+                       pstep = 1000,
+                       trace = FALSE)
 summary(mod.best)
 
+plot(mod.best)
+
 S.keepers <- names( mod.best$terminfo$ordered )
+S.keepers
 
 # Chem
+chem <- read.csv("chem.f21-s22.notrib.reduced.csv")%>%
+  filter(season == "Spring") %>%
+  filter( Stream == "SPC (MI)") %>%
+  select(do.mgl:so4.hco3)
+chem <- chem[, colSums(chem != 0, na.rm = TRUE) > 0] 
+chem.z <- decostand(chem, method = "standardize",  na.rm =TRUE)
+chem.z <- chem.z %>%
+  select_if(~ ! any(is.na(.)))
+
+# Variables are now centered around a mean of 0
+round(apply(chem.z, 2, mean), 1)
+apply(chem.z, 2, sd)
+
+#chem.z$Stream <- springrow$Stream
+
 mod.0 <- rda(com.hel ~ 1, data = chem.z)
 mod.1 <- rda(com.hel ~ ., data = chem.z)
 
 #stepwise selection of the best model
-mod.best <- ordiR2step(mod.0, scope = mod.1 )
-E.keepers <- names(mod.best$terminfo$ordered)
-E.keepers
+mod.best <- ordiR2step(mod.0, scope = mod.1, R2scope = FALSE)
+C.keepers <- names(mod.best$terminfo$ordered)
+C.keepers
 
 #Habitat
+hab <- read.csv("habitatmaster.csv") %>%
+  filter( Stream == "SPC (MI)") %>%
+select(-c(Stream:smallcobble)) 
+hab.z <- decostand(hab, method = "standardize", na.rm =TRUE)
+hab.z <- hab.z[, colSums(hab.z != 0, na.rm = TRUE) > 0]
+
+# Variables are now centered around a mean of 0
+round(apply(hab.z, 2, mean), 1)
+apply(hab.z, 2, sd)
+
+#hab.z$Stream <- springrow$Stream
+
 mod.0 <- rda(com.hel ~ 1, data = hab.z)
 mod.1 <- rda(com.hel ~ ., data = hab.z)
 
 #stepwise selection of the best model
 mod.best <- ordiR2step(mod.0, scope = mod.1 )
+
+mod.best <- ordiR2step(rda( com.hel ~1, data = hab.z), scope = formula(mod.1),  
+                       direction = "forward",
+                       R2scope = FALSE, # can't surpass the "full" model's R2
+                       pstep = 1000,
+                       trace = FALSE)
 H.keepers <- names(mod.best$terminfo$ordered)
 H.keepers
 
 # put them all together
-d.C <- chem.z[,E.keepers]
+d.C <- chem.z[,C.keepers]
 d.S <- d.space.scaled[,S.keepers]
 d.H <- hab.z[,H.keepers]
-mod.varpart <- varpart(com.hel, d.C, d.H)
+spc <- varpart(com.hel, d.C, d.H, d.S)
+plot(spc)
+rol
 
-png("Pcoa.C&H.allstream.spring.png", width = 600, height = 500)
-plot(mod.varpart)
-title(main = "All Streams (Spring 2022)", sub = "X1 = Water Quality, X2 = Habitat")
+C.keepers
+
+#setwd("/Users/melaniemcmillan/Desktop/McMillan_R/Spatial_Comm_Comp_F21-S22")
+png("varpart.C&H&S.ex.spring.png", width = 150, height = 200)
+plot(spc, Xnames = c("Water \nQuality","Habitat", "Space"))
+title(main = "SPC (MI)", sub = "Drivers: average vegetative protection (L), latitude, PCNM2, \ncalcium, nitrate+nitrite")
 dev.off()
 
-
-library(vegan)
+#RDA with species
+#Source: https://rstudio-pubs-static.s3.amazonaws.com/694016_e2d53d65858d4a1985616fa3855d237f.html
+library(BiodiversityR) # also loads vegan
 library(ggplot2)
-library()
-install.packages("remotes")
-remotes::install_github("jfq3/ggordiplots")
-data("dune")
-data("dune.env")
-dune.hel <- decostand(dune, method = "hellinger")
-ord <- rda(dune.hel)
-ggordiplots::gg_ordiplot(ord, groups = dune.env$Management, pt.size = 3)
+library(readxl)
+library(ggsci)
+library(ggrepel)
+library("ggforce")
 
-ord <- rda(spe.hel)
-ggordiplots::gg_ordiplot(ord, groups = chem.z$Stream)
-ggordiplots::gg_ordiplot()
-library("digest")
+
+com.hel <- disttransform(com, method='hellinger')
+Ordination.model2 <- rda(com.hel ~ Stream, data=chem.z, scaling="species")
+summary(Ordination.model2)
+
+plot2 <- ordiplot(Ordination.model2, choices=c(1,2))
+plot2
+
+sites.long2 <- sites.long(plot2, env.data=chem.z)
+head(sites.long2)
+
+species.long2 <- species.long(plot2)
+species.long2
+
+axis.long2 <- axis.long(Ordination.model2, choices=c(1, 2))
+axis.long2
+
+spec.envfit <- envfit(plot2, env=chem.z)
+spec.data.envfit <- data.frame(r=spec.envfit$vectors$r, p=spec.envfit$vectors$pvals)
+species.long2 <- species.long(plot2, spec.data=spec.data.envfit)
+species.long2
+
+species.long3 <- species.long2[species.long2$r >= 0.6, ]
+species.long3
+
+plotgg2 <- ggplot() + 
+  geom_vline(xintercept = c(0), color = "grey70", linetype = 2) +
+  geom_hline(yintercept = c(0), color = "grey70", linetype = 2) +  
+  xlab(axis.long2[1, "label"]) +
+  ylab(axis.long2[2, "label"]) +  
+  scale_x_continuous(sec.axis = dup_axis(labels=NULL, name=NULL)) +
+  scale_y_continuous(sec.axis = dup_axis(labels=NULL, name=NULL)) +    
+  geom_point(data=sites.long2, 
+             aes(x=axis1, y=axis2, colour=Stream, shape=Stream), 
+             size=5) +
+  geom_segment(data=species.long3, 
+               aes(x=0, y=0, xend=axis1*4, yend=axis2*4), 
+               colour="red", size=0.7, arrow=arrow()) +
+  geom_text_repel(data=species.long3, 
+                  aes(x=axis1*4, y=axis2*4, label=labels),
+                  colour="red") +
+  theme_classic() +
+  ggsci::scale_colour_npg() +
+  coord_fixed(ratio=1)
+
+plotgg2 
+
+png("PCOA.fall.species.chem.png", width = 550, height = 550)
+plot(plotgg2)
+dev.off()
+
+#RDA, CCA, CAP, dbRDA
+#https://fukamilab.github.io/BIO202/06-B-constrained-ordination.html
+com <- read.csv("bugid.csv") %>%
+  filter(Season == "Spring") %>%
+  #filter(Stream == "CRO (R)") %>%
+  dplyr::select(-c(Stream:Site))
+com <- com[, colSums(com != 0, na.rm = TRUE) > 0]
+
+chem <- read.csv("chem.f21-s22.notrib.reduced.csv")%>%
+  filter(season == "Spring") %>%
+  #filter(Stream == "ROL (MI)") %>%
+  #filter(Stream == "CRO (R)") %>%
+  dplyr::select(-c(Stream:season))
+chem.z <- decostand(chem, method = "standardize",  na.rm =TRUE)
+chem.z <- chem.z %>%
+  select_if(~ ! any(is.na(.)))
+round(apply(chem.z, 2, mean), 1)
+apply(chem.z, 2, sd)
+springrow <-  read.csv("chem.f21-s22.notrib.csv") %>%
+  filter(season == "Spring") %>%
+  dplyr::select(Stream) 
+chem.z$Stream <- springrow$Stream
+
+met <- read.csv("metrics.f21-s22.csv")%>%
+  filter(Season == "Spring") %>%
+  #filter(Stream == "ROL (MI)") %>%
+  dplyr::select(-c(Stream:totind))
+met.z <- decostand(met, method = "standardize",  na.rm =TRUE)
+met.z <- met.z %>%
+  select_if(~ ! any(is.na(.)))
+round(apply(met.z, 2, mean), 1)
+apply(met.z, 2, sd)
+springrow <-  read.csv("metrics.f21-s22.csv") %>%
+  filter(Season == "Spring") %>%
+  dplyr::select(Stream) 
+met.z$Stream <- springrow$Stream
+
+hab <- read.csv("habitatmaster.csv") %>%
+  select(-c(Stream:smallcobble)) 
+hab.z <- decostand(hab, method = "standardize",  na.rm =TRUE)
+hab.z <- hab.z %>%
+  select_if(~ ! any(is.na(.)))
+round(apply(hab.z, 2, mean), 1)
+apply(hab.z, 2, sd)
+hab.z$Stream <- springrow$Stream
+
+all <- cbind(met, hab, chem) %>%
+  select(pSC, pChiO , pP.less.Amph , 
+           pEPT.less.HBL , pCling , pCG , pD , pPR , rich.D , 
+           pSC.less.E , pCF , rich.INT , pSprawl , rich.P
+         , pOligo, ca.mg , ba.ugl , mg.mgl , sc.uScm , 
+           co.ugl , u.ugl , al.ugl , ni.ugl , cl.mgl , mn.ugl , temp.C , 
+           no2no3.n.mgl, D10 , avgembedd , psmallcobble , 
+           avgcancov , avgvegprotecR, avg.slope)
+all.z <- decostand(all, method = "standardize",  na.rm =TRUE)
+all.z <- all.z %>%
+  select_if(~ ! any(is.na(.)))
+round(apply(all.z, 2, mean), 1)
+apply(all.z, 2, sd)
+
+# add stream?
+
+# hellinger transform the species dataset: gives low weights to rare species 
+spe.hel <- decostand(com, "hellinger")
+
+# Calculate distance matrix
+bc<-vegdist(spe.hel, method="bray", binary=FALSE) 
+
+# look at an unconstrained ordination first, it is always a good idea to look at both unconstrained and constrained ordinations
+# set the seed: to reproduce the same result in the fture
+set.seed(100)
+bci.mds<-metaMDS(spe.hel, distance = "bray", k = 2)
+
+# extract x and y coordinates from MDS plot into new dataframe, so you can plot with ggplot 
+MDS_xy <- data.frame(bci.mds$points)
+bci.mds$stress # 0.1853822
+
+# colour by island
+ggplot(MDS_xy, aes(MDS1, MDS2, col=met.z$Stream)) + geom_point() + theme_bw() + ggtitle('stress:0.185')
+
+mod.0 <- rda(spe.hel ~ 1, data = met.z)
+mod.1 <- rda(spe.hel ~ ., data = met.z)
+
+#stepwise selection of the best model
+simpleRDA <- ordiR2step(mod.0, scope = mod.1, R2scope = FALSE)
+simpleRDA$call
+
+simpleRDA <- rda(formula = spe.hel ~  pP.less.Amph + 
+                    pD + pPR + 
+                   pSC.less.E + pCF + pSprawl + ca.mg + mg.mgl + sc.uScm + 
+                   no2no3.n.mgl + D10 + avgembedd + 
+                   avgcancov + avg.slope , data = all.z)
+
+simpleRDA <- rda(formula = spe.hel ~ D10 + avgembedd + psmallcobble + 
+      avgcancov + avgvegprotecR, data = hab.z)# Stream group removed, Spring
+
+simpleRDA <- rda(formula = spe.hel ~ Stream + ca.mg + ba.ugl + mg.mgl + sc.uScm + 
+                   co.ugl + u.ugl + al.ugl + ni.ugl + cl.mgl + mn.ugl + temp.C + 
+                   no2no3.n.mgl, data = chem.z)  # Stream group removed, Spring
+  
+simpleRDA <- rda(formula = spe.hel ~  pChiO + pP.less.Amph + pEPT.less.HBL + 
+                   pCling + pCG + pD + pPR + rich.D + pSC.less.E + pCF + pEPT.less.H + 
+                   rich.INT + pSprawl + pOligo, data = met.z)
+  
+summary(simpleRDA)
+#rda(formula = spe.hel ~ ba.ugl + v.ugl + ti.ugl + na.mgl + so4.hco3 + 
+#k.mgl + ca.mg + cl.mgl + sr.ugl + hco3.mgl + do.mgl + al.ugl + 
+  #mn.ugl, data = chem.z) #Spring no stream
+#rda(formula = spe.hel ~ Stream + ca.mg + ba.ugl + mg.mgl + sc.uScm + 
+#co.ugl + u.ugl + al.ugl + ni.ugl + cl.mgl + mn.ugl + temp.C + 
+  #no2no3.n.mgl, data = chem.z) #Spring with Stream
+
+#Baetis=com$Baetis
+#test <- cbind(Baetis, chem.z)
+#mod <- lm(Baetis ~., data= test)
+#summary(mod)
+
+M.best <- names(simpleRDA$terminfo$ordered)
+M.best
+summary(simpleRDA)
+screeplot(simpleRDA) #bstick not available for constrained ordinations
+
+coef(simpleRDA)
+R2 <- RsquareAdj(simpleRDA)$r.squared
+R2 
+R2adj <- RsquareAdj(simpleRDA)$adj.r.squared
+R2adj 
+
+#‘lc’: orthogonal linear combinations of the explanatory variable (display=c("lc", "sp", "cn"))
+# ‘wa’: more robust to noise in the environmental variables but are a step between constrained towards unconstrained.(display="sp")
+# Triplot: three different entities in the plot: sites, response variables and explanatory variables (arrowheads are on the explanatory variables)
+# Scaling 1, wa = weighted sums of species
+plot(simpleRDA, scaling=1, main="Triplot RDA matrix ~ env - scaling 1 - wa scores")
+# arrows for species are missing, so lets add them without heads so they look different than the explanatory variables
+spe.sc <- scores(simpleRDA, choices=1:2, scaling=1, display="sp")
+arrows(0,0,spe.sc[,1], spe.sc[,2], length=0, lty=1, col='red')
+
+# Scaling 2
+#wa
+plot(simpleRDA, main="Triplot RDA matrix ~ env - scaling 2 - wa scores")
+spe2.sc <- scores(simpleRDA, choices=1:2, display="sp") # scores() choices= indicates which axes are to be selected, make sure to specify the scaling if its different than 2 
+arrows(0,0,spe2.sc[,1], spe2.sc[,2], length=0, lty=1, col='red')
+
+#IC
+plot(simpleRDA, display=c("sp", "lc", "cn"), main="Triplot RDA matrix ~ env -scaling2-lc scores")
+arrows(0,0,spe2.sc[,1],spe2.sc[,2], length=0, lty=1,col='red')
+
+length()
+
+library(ggord)
+library(vcd)
+plot <- ggord(simpleRDA, springrow$Stream, exp = 0.05, repel = TRUE, ext = 1.35, 
+              size = 7, veclsz = 1, txt = 10, cols = c("chartreuse",
+                                                       "chartreuse3",
+                                                       "violetred1",
+                                                       "violetred2",
+                                                       "violetred3",
+                                                       "violetred4")) + #facet = TRUE, xlims = -1, 1, ylims = -1,1
+  theme(axis.title.x =element_text(size = 50), axis.text.x = element_text(size = 25),
+        axis.title.y =element_text(size = 50), axis.text.y  = element_text(size = 25),
+        strip.text.x = element_text(size = 30), 
+        legend.text=element_text(size=20), legend.title=element_text(size=25),
+        panel.grid.major = element_blank(), panel.grid.minor = element_blank()) 
+  
+        
+  # looking at the raw code, this is plotting the 'wa scores', the blue dots are different species  
+plot
+
+png("RDA.spring.allmetric.png", width = 1500, height = 1000)
+plot
+dev.off()
+# CCA constrained by the same environmental data
+simpleCCA <- cca(com ~ Stream + ca.mg + ba.ugl + mg.mgl + sc.uScm + 
+                   co.ugl + u.ugl + al.ugl + ni.ugl + cl.mgl + mn.ugl + temp.C + 
+                   no2no3.n.mgl, data = chem.z ) # Notice we are not using the hellinger transformation that downweights the importance of rare species
+
+summary(simpleCCA)
+# variation is now expressed as the mean squared contigency coefficient (biased and is not easily adjusted)
+# species scores are represented as points
+# site scores are averages of species scores 
+
+screeplot(simpleCCA) # the first two axes are not as clear  
+
+plot(simpleCCA, scaling=1, display=c('sp', 'lc', 'cn'), 
+     main='Triplot CCA matrix ~ env -scaling 1')
+
+# plot the CCA using ggplot (ggord package)
+ggord(simpleCCA, chem.z$Stream) + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) # looking at the raw code, this is plotting the 'wa scores'
+
+dbRDA <- capscale(com ~ Stream + ca.mg + ba.ugl + mg.mgl + sc.uScm + 
+                    co.ugl + u.ugl + al.ugl + ni.ugl + cl.mgl + mn.ugl + temp.C + 
+                    no2no3.n.mgl, data = chem.z , distance = "bray")
+
+dbRDA
+ggord(dbRDA, chem.z$Stream) + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) # looking at the raw code, this is plotting the 'wa scores'
+
+
+
 

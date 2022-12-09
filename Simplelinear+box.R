@@ -1,13 +1,3 @@
-# PART 1) Simple regression of main metrics known to differ between streams by stream
-# Part 2) Determine which habitat and water chemistry metrics are correlated to which insect metrics using NMDS. One NMDS graph with vectors of water quality and habitat on-top of raw insect community data.
-# PART 3) Step-wise multiple regression of habitat and water quality to community similarity
-
-#PART 1: metrics of interest: bugs) E.rich, E.rich.less.B, %E less B, EPT.rich, SC.rich, %E
-# shannon, total richness, %5 Dominant Taxa, predator richness, scraper richness; 
-# Water) SC, Se, SO4:HCO3; Ca:Mg ; Habitat) watershed size, stream gradient, LCF
-
-# Boxplots. Top 3 that change between my streams pEPT.less.HBL, pE.less.B, and pT
-# most expected to change with SC rich.SC, rich.EPT, rich.E.less.B, p5dom, Hshannon
 
 library(ggpubr)
 
@@ -16,9 +6,8 @@ metrics <- read.csv("metrics.f21-s22.csv")
 chem <- read.csv("chem.f21-S22.notrib.csv") 
 #chem <- left_join(distance.d, chem, by = c("site" = "Site")) 
 hab <- read.csv("habitatmaster.csv")
-reg <- left_join(metrics, chem, by = c("Site", "Season" = "season")) 
-reg.s <- filter(reg, Season == "Spring")
-reg.f <- filter(reg, Season == "Fall")
+reg <- left_join(metrics, chem, by = c("Site", "Season" = "season", "dist.d", "Stream")) 
+
 
 
 library(rstatix)
@@ -27,6 +16,7 @@ library("egg") #The egg package contains one of my favorite themes, theme_articl
 library("multcompView")
 library("sigminer")
 
+# Table of metrics to SC and dist.d correlation
 letters.df <- data.frame(multcompLetters(TukeyHSD(aov(rich.SC ~ Stream.y, 
                                                       data = reg))$Stream.y[,4])$Letters)
 
@@ -39,6 +29,9 @@ placement <- reg %>% #We want to create a dataframe to assign the letter positio
 
 colnames(placement)[2] <- "Placement.Value"
 letters.df <- left_join(letters.df, placement) #Merge dataframes
+
+
+# Boxplots between stream comparisons for reference
 
 box <- reg %>%
   ggplot(aes(x= Stream.y, y= rich.SC, group = Stream.y, color = Stream.y)) +
@@ -80,31 +73,37 @@ png("box.tukeyhsd+aov.richElessBxstreamxseason.png", width = 900, height = 450)
 plot(box)
 dev.off()
 
-# Top insect vs sc metrics of interest: rich.SC, rich.EPT, rich.E.less.B, p5dom, Hshannon
-# Top insect vs water quality metrics: sc.uScm, se.ugl, ca/mg, so4/hco3; Hshannon and rich.EPT
-# Top insect vs habitat metrics: LCF, avg.slope, avgembedd, pfines; rich.PR and rich.SC
+# Linear regressions SC and distance
+# Top insect metrics vs SC Timpano: rich.E.less.B, pElessB, rich.E, richEPT, rich.SC, pE, rich, Hshannon, 5dom
+# Top insect metrics vs SC Cianciolo: rich, rich.EPT, rich.E, rich.SC, Hshannon, pE
+# Drover Multiple stressors: SC - rich.E, pE; Se - Predator density; LCF- rich.Cling; LRBS - rich.Cling
+
+#My Metrics of interest: rich.SC, rich.Cling, rich.EPT, 5dom, Hshannon, rich.PR
+# rich.E, rich.EPT, rich.SC, rich, Shannon, rich.Cling (habitat)
 
 library (ggplot2)
 
-plot <- ggplot(chem ,aes(x=dist.d, y=sc.uScm, group = season, color = season))+
+plot3 <- ggplot(reg ,aes(x=dist.d, y=rich.Cling, group = Season, color = Season))+
   geom_point()+
   # geom_jitter() +
   stat_smooth(method = "lm", linetype = 2) +
-  stat_cor(method = "spearman") +
-  stat_regline_equation(label.x.npc = 0.5, label.y.npc = 0.95) +
+  stat_cor(method = "spearman", label.y.npc = 1) +
+  stat_regline_equation(label.x.npc = 0.5, label.y.npc = 0) +
   #ylim(0,8) +
   #xlim(0, 2500) +
   theme_classic() +
   xlab("Distance Downstream") +
-  ylab("Specific Conductance (uS/cm)") +
-  ggtitle("Specific Conductance (uS/cm) vs Distance Downstream") +
+  ylab("Clinger Richness") +
+  ggtitle("Clinger Richness vs Distance Downstream") +
   theme(plot.title = element_text(hjust = 0.5, size = 15, face = "bold")) +
   labs(color="Season") +
-  facet_wrap("Stream")  
-plot
+  facet_wrap("Stream") 
+plot3
+
+plot <- ggarrange(plot1, plot2, plot3, plot4, plot5, plot6, ncol = 3, nrow = 2, common.legend = TRUE, legend = "bottom")
 
 
-plot <- ggplot(reg ,aes(x=sc.uScm, y=rich.E.less.B, group = Season, color = Season))+
+plot7 <- ggplot(reg ,aes(x=sc.uScm, y=rich.E.less.B, group = Season, color = Season))+
   geom_point()+
   # geom_jitter() +
   stat_smooth(method = "lm", linetype = 2) +
@@ -114,57 +113,31 @@ plot <- ggplot(reg ,aes(x=sc.uScm, y=rich.E.less.B, group = Season, color = Seas
   #xlim(0, 2500) +
   theme_classic() +
   xlab("Specific Conductance (uS/cm)") +
-  ylab("Richness of Ephemeroptera less Baetidae") +
-  ggtitle("Richness of Ephemeroptera less Baetidae vs Specific Conductance (uS/cm)") +
-  theme(plot.title = element_text(hjust = 0.5, size = 15, face = "bold")) +
-  facet_wrap("Stream.y")  
+  ylab("EPT less B") +
+  ggtitle("EPT less B vs Specific Conductance (uS/cm)") +
+  theme(plot.title = element_text(hjust = 0.5, size = 15, face = "bold")) + 
+  facet_wrap("Stream")  
 
-plot
+plot4
 
+plotg <- ggarrange(plot1g, plot2g, plot3g, plot4g, plot5g, plot6g, ncol = 3, nrow = 2, 
+                  common.legend = TRUE, legend = "bottom")
+
+plot <- ggarrange(plot1, plot2, plot3, plot4, plot5, plot6, ncol = 3, nrow = 2, 
+                  common.legend = TRUE, legend = "bottom")
+ggarrange(plot2, plot7)
 
 #set size and save plot as png
-png("scxdistd.season.png", width = 900, height = 450)
+png("metricsxsc.season.png", width = 1700, height = 1000)
 plot(plot)
 dev.off()
 
+Sumj <-Similar %>%
+  group_by(Stream, Season) %>%
+  slice_min(SIM.j) 
+Sumb <-Similar %>%
+  group_by(Stream, Season) %>%
+  slice_min(SIM.b) 
 
-#PART 2 MULTIPLE REGRESSION??
-#install.packages("glmulti")
-#library(glmulti)
-library(dplyr)
-library(car)
 
-# prepare data to be used
-sim <- read.csv("Similarity.f21.csv")
-sim <- sim %>% filter(START %in% c("CRO-1", "EAS-1", "LLW-1", "ROL-1", "SPC-1", "FRY-2")) %>%
-  filter(END != "FRY-1") %>%
-  filter(END != "SPC-6") %>%
-  filter(END != "FRY-8")
-chem <- read.csv("chem.f21-S22.csv")
-chem <- filter( chem, season == "Fall") 
-multireg <- left_join(sim, chem, by = c("END" = "site.id")) 
-multireg <- select(multireg, -c(1:5, 8:12, 28, 46:54))
-
-which(is.na(multireg))
-
-library(lme4)
-
-#define intercept-only model
-intercept_only <- lm( SIM ~ 1, data=multireg)
-summary(intercept_only)
-
-#define model with all predictors
-colnames(multireg)
-all <- lm(SIM ~ temp.C + hardness.mgl + no2no3.n.mgl + so4.mgl + k.mgl + ti.ugl +
-            mn.ugl + zn.ugl + dis.simm + sc.uScm + tn.mgl + ortho.po4.p.mgl + hco3.mgl 
-          + ca.mgl + v.ugl + co.ugl + as.ugl +do.mgl + ac.uScm + tp.mgl + npoc.mgl + 
-            na.mgl + li.ugl + ph + alkalinity.mgl + nh3.n.mgl +
-            cl.mgl + mg.mgl + al.ugl + se.ugl + fe.ugl + cu.ugl, data=multireg)
-summary(all)
-plot(all)
-
-#perform forward stepwise regression
-forward <- step(intercept_only, direction='forward', scope=formula(all), trace=0)
-plot(forward)
-#view results of forward stepwise regression
-forward$anova
+write.csv(Sumb, file="sumb.csv", sep = ",")

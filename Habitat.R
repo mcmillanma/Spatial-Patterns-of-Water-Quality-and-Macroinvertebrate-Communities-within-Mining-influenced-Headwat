@@ -4,7 +4,7 @@
 # 1) Variables chosen to represent sediment characteristics were quantiles of the sediment
 #distributions (10, 16, 25, 50, 75, 84, and 90; expressed as D10, D16, etc.), ratio of D84 to D50, and interquartile range of sediment distributions
 # 2) proportion of sediment that occur in each size class (e.g. % fines, % gravel, % cobble) based on the
-# Udden-Wentworth grain size classification system (Wentworth 1922, Blair and McPherson 1999), 
+# Udden-Wentworth grain size classification system (Wentworth 1922, Blair and McPherson 1999) https://vtechworks.lib.vt.edu/bitstream/handle/10919/83772/Drover_DR_D_2018.pdf?sequence=1&isAllowed=y, 
 #ratio of % small cobble (64-128 mm) 
 #to % fines (<2 mm), 
 #ratio of %large cobble (128-255 mm) to

@@ -89,25 +89,28 @@ abline(reg.3$coefficients)
 
 #plotting similarity by stream
 
-b.plot <- Similar %>% ggplot(aes(x=dis.simm , y=SIM.b, group = Season, color = Season))+
+Similar <- read_csv("Similarity.csv")
+
+b.plot <- Similar %>% ggplot(aes(x=sc.delt , y=SIM.b, group = Season, color = Season))+
   geom_point()  +
   stat_smooth(method = "lm", linetype = 2) +
   stat_cor(method = "spearman", label.y.npc = 0.3) +
   stat_regline_equation(label.x.npc = 0.5, label.y.npc = 0.15) +
   theme_classic()+
-  xlab("Distance Between Samples (m)") +
+  xlab("Change in Specific Conductance (uS/cm)") +
   ylab("Bray-Curtis Simmilarity") +
   ggtitle("Bray-Curtis Community Simmilarity vs Distance Between Samples") +
   theme(plot.title = element_text(hjust = 0.5, size = 15, face = "bold")) +
   #scale_y_continuous(limits = c(0.4, 1)) +
-  facet_wrap("Stream.x")
+  facet_wrap("Stream")
 j.plot
 b.plot
-sim
+
 sim <- ggarrange(b.plot, j.plot, ncol= 1)
+sim
 
 #set size and save plot as png
-png("bray+jaccxdist.stream.season.png", width = 900, height = 1200)
+png("bray+jaccxsc.stream.season.png", width = 900, height = 1200)
 plot(sim)
 dev.off()
 
@@ -137,4 +140,5 @@ summary(reg.6)
 
 
 (CRO +EAS +FRY) /(ROL + LLW+ SPC) +plot_annotation(title = "Aquatic Insect Dissimilarity vs Distance Downstream")
+
 
