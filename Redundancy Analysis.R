@@ -5,6 +5,7 @@ library(ggplot2)
 library(dplyr)
 library(tidyverse)
 
+
 com <- read.csv("bugid.csv")  %>%
   filter(Season == "Spring") %>%
   #filter(Stream == "CRO") %>%
@@ -22,7 +23,7 @@ springrow <-  read.csv("chem.f21-s22.notrib.csv") %>%
   select(Stream) 
 
 hab <- read.csv("habitatmaster.csv") %>%
-  filter(Stream == "LLW (MI)") %>%
+  #filter(Stream == "ROL (MI)") %>%
   select(-c(Stream:smallcobble)) 
   
 
@@ -99,14 +100,15 @@ spe.hel <- spe.hel[-c(32),]
 library("geosphere")
 library(sp)
 library(sf)
+library(tidyverse)
+library(vegan)
 
 spring.xy <- read.csv("spring_coord_notrib.csv") %>%
-#filter(Site != "EAS9") %>%
-#filter(Site != "FRY8")%>%
-#filter(Site != "FRY9")%>%
-#filter(Site != "ROL7") %>%
-  #filter(Site != "SPC6") %>%
-  filter(Stream == "SPC (MI)") %>%
+filter(Site != "EAS9") %>%
+filter(Site != "FRY8")%>%
+filter(Site != "FRY9")%>%
+filter(Site != "ROL7") %>%
+filter(Site != "SPC6") %>%
   select(-c("Stream","Site"))
 
 site.loc.sp = sp::SpatialPointsDataFrame(coords = data.frame(spring.xy$x, 
@@ -147,8 +149,7 @@ ordisurf(spring.xy, scores(mod.pcnm, choi=1), bubble = 4,knots = 5, main = "PCNM
 ordisurf(spring.xy, scores(mod.pcnm, choi=13), bubble = 4, main = "PCNM 13")
 
 com <- read.csv("bugid.csv")  %>%
-  filter(Season == "Spring") %>%
-  filter( Stream == "SPC (MI)") %>%
+  filter(Season == "Fall") %>%
   select(-c(Stream:Site))
 com.hel <- decostand( com, "hel")
 
@@ -181,8 +182,8 @@ S.keepers
 
 # Chem
 chem <- read.csv("chem.f21-s22.notrib.reduced.csv")%>%
-  filter(season == "Spring") %>%
-  filter( Stream == "SPC (MI)") %>%
+  filter(season == "Fall") %>%
+  filter(Site != "SPC6")%>%
   select(do.mgl:so4.hco3)
 chem <- chem[, colSums(chem != 0, na.rm = TRUE) > 0] 
 chem.z <- decostand(chem, method = "standardize",  na.rm =TRUE)
@@ -191,6 +192,7 @@ chem.z <- chem.z %>%
 
 # Variables are now centered around a mean of 0
 round(apply(chem.z, 2, mean), 1)
+
 apply(chem.z, 2, sd)
 
 #chem.z$Stream <- springrow$Stream
@@ -205,7 +207,11 @@ C.keepers
 
 #Habitat
 hab <- read.csv("habitatmaster.csv") %>%
-  filter( Stream == "SPC (MI)") %>%
+  filter(Site != "EAS9") %>%
+  filter(Site != "FRY8")%>%
+  filter(Site != "FRY9")%>%
+  filter(Site != "ROL7") %>%
+  filter(Site != "SPC6") %>%
 select(-c(Stream:smallcobble)) 
 hab.z <- decostand(hab, method = "standardize", na.rm =TRUE)
 hab.z <- hab.z[, colSums(hab.z != 0, na.rm = TRUE) > 0]
@@ -220,7 +226,10 @@ mod.0 <- rda(com.hel ~ 1, data = hab.z)
 mod.1 <- rda(com.hel ~ ., data = hab.z)
 
 #stepwise selection of the best model
-mod.best <- ordiR2step(mod.0, scope = mod.1 )
+mod.best <- ordiR2step(mod.0, scope = mod.1, direction = "forward",
+                       R2scope = FALSE, # can't surpass the "full" model's R2
+                       pstep = 1000,
+                       trace = FALSE) 
 
 mod.best <- ordiR2step(rda( com.hel ~1, data = hab.z), scope = formula(mod.1),  
                        direction = "forward",
@@ -234,16 +243,19 @@ H.keepers
 d.C <- chem.z[,C.keepers]
 d.S <- d.space.scaled[,S.keepers]
 d.H <- hab.z[,H.keepers]
-spc <- varpart(com.hel, d.C, d.H, d.S)
-plot(spc)
-rol
+all <- varpart(com.hel, d.C, d.H, d.S)
+plot(all)
 
-C.keepers
+S.keepers
+
 
 #setwd("/Users/melaniemcmillan/Desktop/McMillan_R/Spatial_Comm_Comp_F21-S22")
-png("varpart.C&H&S.ex.spring.png", width = 150, height = 200)
-plot(spc, Xnames = c("Water \nQuality","Habitat", "Space"))
-title(main = "SPC (MI)", sub = "Drivers: average vegetative protection (L), latitude, PCNM2, \ncalcium, nitrate+nitrite")
+png("varpart.C&H&S.ex.fal.png", width = 500, height = 500)
+plot(all, Xnames = c("Water \nQuality","Habitat", "Space"))
+title(main = "All Streams Fall", sub = "Drivers: avgwetwidth, pfine, D50, avg.slope, avgvegprotecR, avgbankstabL, /n
+      D90, avgembedd, ba.ugl, so4.hco3, npoc.mgl, li.ugl, hco3.mgl, sr.ugl, /n
+      fe.ugl, ca.mgl, al.ugl, hardness.mgl, cu.ugl, ph, so4.mgl, k.mgl /n
+      latitude, longitude, PCNM1,2,3,4,5, and 7")
 dev.off()
 
 #RDA with species
@@ -309,19 +321,20 @@ dev.off()
 #RDA, CCA, CAP, dbRDA
 #https://fukamilab.github.io/BIO202/06-B-constrained-ordination.html
 com <- read.csv("bugid.csv") %>%
-  filter(Season == "Spring") %>%
+  #filter(Season == "Spring") %>%
   #filter(Stream == "CRO (R)") %>%
   dplyr::select(-c(Stream:Site))
 com <- com[, colSums(com != 0, na.rm = TRUE) > 0]
 
 chem <- read.csv("chem.f21-s22.notrib.reduced.csv")%>%
-  filter(season == "Spring") %>%
+  #filter(season == "Spring") %>%
   #filter(Stream == "ROL (MI)") %>%
   #filter(Stream == "CRO (R)") %>%
   dplyr::select(-c(Stream:season))
 chem.z <- decostand(chem, method = "standardize",  na.rm =TRUE)
 chem.z <- chem.z %>%
   select_if(~ ! any(is.na(.)))
+shapiro.test(chem.z$sc.uScm)
 round(apply(chem.z, 2, mean), 1)
 apply(chem.z, 2, sd)
 springrow <-  read.csv("chem.f21-s22.notrib.csv") %>%
@@ -336,6 +349,7 @@ met <- read.csv("metrics.f21-s22.csv")%>%
 met.z <- decostand(met, method = "standardize",  na.rm =TRUE)
 met.z <- met.z %>%
   select_if(~ ! any(is.na(.)))
+shapiro.test(met.z$pE)
 round(apply(met.z, 2, mean), 1)
 apply(met.z, 2, sd)
 springrow <-  read.csv("metrics.f21-s22.csv") %>%
@@ -345,9 +359,10 @@ met.z$Stream <- springrow$Stream
 
 hab <- read.csv("habitatmaster.csv") %>%
   select(-c(Stream:smallcobble)) 
-hab.z <- decostand(hab, method = "standardize",  na.rm =TRUE)
+hab.z <- decostand(hab, method = "log",  na.rm =TRUE)
 hab.z <- hab.z %>%
   select_if(~ ! any(is.na(.)))
+shapiro.test(hab.z$pfines)
 round(apply(hab.z, 2, mean), 1)
 apply(hab.z, 2, sd)
 hab.z$Stream <- springrow$Stream
@@ -370,6 +385,7 @@ apply(all.z, 2, sd)
 
 # hellinger transform the species dataset: gives low weights to rare species 
 spe.hel <- decostand(com, "hellinger")
+shapiro.test(spe.hel$Allocapnia)
 
 # Calculate distance matrix
 bc<-vegdist(spe.hel, method="bray", binary=FALSE) 
@@ -393,11 +409,11 @@ mod.1 <- rda(spe.hel ~ ., data = met.z)
 simpleRDA <- ordiR2step(mod.0, scope = mod.1, R2scope = FALSE)
 simpleRDA$call
 
-simpleRDA <- rda(formula = spe.hel ~  pP.less.Amph + 
-                    pD + pPR + 
-                   pSC.less.E + pCF + pSprawl + ca.mg + mg.mgl + sc.uScm + 
-                   no2no3.n.mgl + D10 + avgembedd + 
-                   avgcancov + avg.slope , data = all.z)
+simpleRDA <- rda(formula = spe.hel ~ Stream + pSC + pChiO + pP.less.Amph + 
+      pEPT.less.HBL + pCling + pEPT + pCG + pD + pPR + rich.D + 
+      pSC.less.E + pCF + pEPT.less.H + rich.INT + pSprawl + rich.P + 
+      rich.PR + pOligo, data = met.z)
+
 
 simpleRDA <- rda(formula = spe.hel ~ D10 + avgembedd + psmallcobble + 
       avgcancov + avgvegprotecR, data = hab.z)# Stream group removed, Spring

@@ -139,7 +139,7 @@ chem %>%
 
 #https://fukamilab.github.io/BIO202/06-B-constrained-ordination.html
 com <- read.csv("bugid.csv") %>%
-  filter(Season == "Spring") %>%
+  filter(Season == "Fall") %>%
   filter(Stream == "CRO (R)") %>%
   dplyr::select(-c(Stream:Site))
 com <- com[, colSums(com != 0, na.rm = TRUE) > 0]
@@ -148,6 +148,16 @@ chem <- read.csv("chem.f21-s22.notrib.reduced.csv")%>%
   filter(season == "Spring") %>%
   filter(Stream == "CRO (R)") %>%
   dplyr::select(-c(Stream:season))
+
+met <- read.csv("metrics.f21-s22.csv") %>%
+  filter(Season == "Fall") %>%
+  filter(Stream == "CRO (R)") %>%
+  dplyr::select(-c(Stream:totind))
+met.z <- decostand(met, method = "standardize",  na.rm =TRUE)
+met.z <- met.z %>%
+  select_if(~ ! any(is.na(.)))
+round(apply(met.z, 2, mean), 1)
+apply(met.z, 2, sd)
 
 hab <- read.csv("habitatmaster.csv") %>%
   filter(Stream == "CRO (R)") %>%
@@ -181,14 +191,14 @@ bci.mds$stress # cro 0.0588, eas 0.0495, fry 0.0232, llw 0, rol 0.041, spc 0.050
 # colour by island
 ggplot(MDS_xy, aes(MDS1, MDS2)) + geom_point() + theme_bw() + ggtitle('stress:0.0495')
 
-mod.0 <- rda(spe.hel ~ 1, data = all.z)
-mod.1 <- rda(spe.hel ~ ., data = all.z)
+mod.0 <- rda(spe.hel ~ 1, data = met.z)
+mod.1 <- rda(spe.hel ~ ., data = met.z)
 
 #stepwise selection of the best model
 simpleRDA <- ordiR2step(mod.0, scope = mod.1, R2scope = FALSE)
 simpleRDA$call
 
-simpleRDA <- rda(formula = spe.hel ~ ph + no2no3.n.mgl +D90,  data = all.z)
+simpleRDA <- rda(formula = spe.hel ~ pP + pChiO, data = met.z)
 
 summary(simpleRDA)
 
@@ -222,14 +232,14 @@ length()
 
 library(ggord)
 library(vcd)
-cro <- ggord(simpleRDA, exp = 0.05, repel = TRUE, ext = 1.35, 
+spc <- ggord(simpleRDA, exp = 0.05, repel = TRUE, ext = 1.35, 
               size = 7, veclsz = 1, txt = 10, obslab = TRUE, cols = c("chartreuse",
                                                        "chartreuse3",
                                                        "violetred1",
                                                        "violetred2",
                                                        "violetred3",
                                                        "violetred4")) + #facet = TRUE, xlims = -1, 1, ylims = -1,1
-  labs(title = "CRO (R)", size = 50) +
+  labs(title = "SPC (MI)", size = 50) +
   theme(axis.title.x =element_text(size = 50), axis.text.x = element_text(size = 25),
         axis.title.y =element_text(size = 50), axis.text.y  = element_text(size = 25),
         strip.text.x = element_text(size = 30), 
@@ -246,10 +256,11 @@ llw
 rol
 spc
 
-plot <- ggarrange(cro, eas, fry, llw, rol, spc, nrow = 2, ncol = 3)
+plot <- ggarrange(eas, fry, rol, spc)
+plot
 
-png("RDA.spring.all.png", width = 3000, height = 1500)
-plot(plot)
+png("RDA.fall.spc.png", width = 600, height = 430)
+plot(spc)
 dev.off()
   
 

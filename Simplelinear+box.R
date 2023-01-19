@@ -6,72 +6,74 @@ metrics <- read.csv("metrics.f21-s22.csv")
 chem <- read.csv("chem.f21-S22.notrib.csv") 
 #chem <- left_join(distance.d, chem, by = c("site" = "Site")) 
 hab <- read.csv("habitatmaster.csv")
-reg <- left_join(metrics, chem, by = c("Site", "Season" = "season", "dist.d", "Stream")) 
+reg <- left_join(metrics, chem, by = c("Site", "Season" = "season", "dist.d", "Stream")) # %>%
+  filter(Season == "Fall")
 
 
-
-library(rstatix)
 library("tidyverse")
-library("egg") #The egg package contains one of my favorite themes, theme_article.
 library("multcompView")
-library("sigminer")
 
-# Table of metrics to SC and dist.d correlation
-letters.df <- data.frame(multcompLetters(TukeyHSD(aov(rich.SC ~ Stream.y, 
-                                                      data = reg))$Stream.y[,4])$Letters)
+# Boxplots between stream comparisons for reference
+#preform anova and find pairwise values
+
+shapiro.test(reg$pE)
+library(car)
+qqPlot(reg$sc.uScm)
+leveneTest(sc.uScm ~ Stream, data = reg)
+
+# https://www.r-bloggers.com/2021/08/how-to-perform-tukey-hsd-test-in-r/
+set.seed(1045)
+model <- aov(sc.uScm~Stream, data=reg)
+summary(model)
+TukeyHSD(model, conf.level=.95)
+plot(TukeyHSD(model, conf.level=.95), las = 2)
+
+#https://www.mathiasecology.com/code/add-tukeys-significant-letters-to-ggplots
+letters.df <- data.frame(multcompLetters(TukeyHSD(
+  aov(sc.uScm~Stream, data=reg))$Stream[,4])$Letters)
 
 colnames(letters.df)[1] <- "Letter" #Reassign column name
-letters.df$Stream.y <- rownames(letters.df) #Create column based on rownames
+letters.df$Stream <- rownames(letters.df) #Create column based on rownames
 
 placement <- reg %>% #We want to create a dataframe to assign the letter position.
-  group_by(Stream.y) %>%
-  summarise(quantile(rich.SC)[4])
+  group_by(Stream) %>%
+  summarise(quantile(sc.uScm)[4])
 
 colnames(placement)[2] <- "Placement.Value"
 letters.df <- left_join(letters.df, placement) #Merge dataframes
 
+box.s <- reg %>% #Dataframe from which data will be drawn
+  ggplot(aes(x = reorder(Stream, sc.uScm, median), y = sc.uScm, color = Stream)) + #Instead of hard-coding a factor reorder, you can call it within the plotting function
+  geom_boxplot(alpha = 0) + #I like to set the color of boxplots to black with the alpha at 0 (fully transparent). I also like geom_jitter() but do not use it here for simplicity.
+  theme_classic() + #Clean, minimal theme courtesy of the "egg" package
+  xlab("Stream (Spring)") +
+  ylab("SC (uS/cm)") +
+  geom_text(data = letters.df, aes(x = Stream, y = Placement.Value, label = Letter), size = 4, color = "black", hjust = -1.25, vjust = -0.8, fontface = "bold")
+box.s
 
-# Boxplots between stream comparisons for reference
+box.f <- reg %>% #Dataframe from which data will be drawn
+  ggplot(aes(x = reorder(Stream, sc.uScm, median), y = sc.uScm, color = Stream)) + #Instead of hard-coding a factor reorder, you can call it within the plotting function
+  geom_boxplot(alpha = 0) + #I like to set the color of boxplots to black with the alpha at 0 (fully transparent). I also like geom_jitter() but do not use it here for simplicity.
+  theme_classic() + #Clean, minimal theme courtesy of the "egg" package
+  xlab("Stream (Fall)") +
+  ylab("SC (uS/cm)") +
+  geom_text(data = letters.df, aes(x = Stream, y = Placement.Value, label = Letter), size = 4, color = "black", hjust = -1.25, vjust = -0.8, fontface = "bold")
+box.f
 
-box <- reg %>%
-  ggplot(aes(x= Stream.y, y= rich.SC, group = Stream.y, color = Stream.y)) +
-  geom_boxplot( alpha = 0) +
-  facet_wrap("Season") + 
-  geom_text(data = letters.df, aes(x = Stream.y, y = Placement.Value, label = Letter),
-            size = 4, color = "black", hjust = -1.25, vjust = -0.8, fontface = "bold")+
-  theme_classic() +
-  ylab("Scraper Richness") +
-  xlab("Stream") +
-  ggtitle("Scraper Richness by Stream") +
-  guides(color = guide_legend(title = "Stream")) +
-  theme(plot.title = element_text(hjust = 0.5, size = 15, face = "bold"))+
-  stat_compare_means(method = "kruskal", label.x.npc = "left", label.y.npc = "bottom") 
-box
+library(ggpubr)
+box <- ggarrange(box.f, box.s, ncol = 2, common.legend = TRUE, legend = "bottom" )
 
-box <- reg %>%
-  ggplot(aes(x= Stream.y, y= rich.SC, group = Stream.y, color = Stream.y)) +
-  geom_boxplot( alpha = 0) +
-  facet_wrap("Season") + 
-  #geom_text(data = letters.df, aes(x = Stream.y, y = Placement.Value, label = Letter),
-            #size = 4, color = "black", hjust = -1.25, vjust = -0.8, fontface = "bold")+
-  theme_classic() +
-  ylab("Scraper Richness") +
-  xlab("Stream") +
-  ggtitle("Scraper Richness by Stream") +
-  guides(color = guide_legend(title = "Stream")) +
-  theme(plot.title = element_text(hjust = 0.5, size = 15, face = "bold"))+
-  stat_compare_means(method = "kruskal", label.x.npc = "left", label.y.npc = "bottom") +
-  stat_compare_means(label = "p.signif", method = "wilcox.test",
-                     ref.group = ".all.")
-
-box
-
-pairs <- compare_means(rich.SC ~ Stream.y, data = reg, 
-              group.by = "Season", method = "wilcox.test")
-
-png("box.tukeyhsd+aov.richElessBxstreamxseason.png", width = 900, height = 450)
+png("box.tukeyhsd+aov.scxstreamxseason.png", width = 900, height = 450)
 plot(box)
 dev.off()
+
+# option 2
+box <- ggboxplot(reg, x = "Stream", y = "sc.uScm", color = "Season",
+          palette = c("#00AFBB", "#E7B800"))
+box
+
+# Are streams community composition different 
+
 
 # Linear regressions SC and distance
 # Top insect metrics vs SC Timpano: rich.E.less.B, pElessB, rich.E, richEPT, rich.SC, pE, rich, Hshannon, 5dom
