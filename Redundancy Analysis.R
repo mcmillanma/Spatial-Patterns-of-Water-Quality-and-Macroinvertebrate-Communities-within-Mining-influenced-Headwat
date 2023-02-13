@@ -2,7 +2,6 @@
 # https://r.qcbs.ca/workshop10/book-en/exploration.html
 library(vegan)
 library(ggplot2)
-library(dplyr)
 library(tidyverse)
 
 
@@ -12,21 +11,19 @@ com <- read.csv("bugid.csv")  %>%
   select(-c(Season, Site, Stream))
 com <- com[, colSums(com != 0, na.rm = TRUE) > 0]
 
-chem <- read.csv("chem.f21-s22.notrib.reduced.csv")%>%
-  filter(season == "Spring") %>%
-  #filter(Stream == "ROL (MI)") %>%
-  #filter(Stream == "CRO") %>%
+chem <- read.csv("chem.pca.csv")%>%
+  filter(season == "Spring") #%>%
+  filter(Stream == "SPC (MI)") #%>%
   select(-c("Stream", Site:season))
 chem <- chem[, colSums(chem != 0, na.rm = TRUE) > 0] 
-springrow <-  read.csv("chem.f21-s22.notrib.csv") %>%
-  filter(season == "Spring") %>%
+springrow <-  read.csv("chem.pca.csv") %>%
+  filter(season == "Spring") #%>%
   select(Stream) 
 
-hab <- read.csv("habitatmaster.csv") %>%
-  #filter(Stream == "ROL (MI)") %>%
-  select(-c(Stream:smallcobble)) 
+hab <- read.csv("hab.pca.csv") %>%
+  filter(Site != "EAS1") %>%
+  select(-c(Stream:Site))
   
-
 #Examine Community Data
 
 sum(com == 0)
@@ -38,48 +35,51 @@ sum(com == 0)/(nrow(com) * ncol(com))
 spe.hel <- decostand(com, method = "hellinger")
 
 # Examine environmental data
-# We can visually look for correlations between variables:
 
-heatmap(abs(cor(chem)), 
-        # Compute pearson correlation (note they are absolute values)
-        col = rev(heat.colors(6)), 
-        Colv = NA, Rowv = NA)
-legend("topright", 
-       title = "Absolute Pearson R",
-       legend =  round(seq(0,1, length.out = 6),1),
-       y.intersp = 0.7, bty = "n",
-       fill = rev(heat.colors(6)))
 # Scale and center variables
-chem <- chem %>% select(do.mgl:so4.hco3)
+chem <- chem %>% select(temp.C:elements.pca) 
 chem.z <- decostand(chem, method = "standardize",  na.rm =TRUE)
 chem.z <- chem.z %>%
   select_if(~ ! any(is.na(.)))
+
+# check for colliniearity
+pairs(chem.z)
+#library (car)
+model <- lm(sc.uScm ~ . , data = chem.z)
+vif(model)
+
+alias <- alias( lm(sc.uScm ~ ., data = chem.z) )
+alias
+
+cor <- cor(chem.z)
 
 # Variables are now centered around a mean of 0
 round(apply(chem.z, 2, mean), 1)
 apply(chem.z, 2, sd)
 
 chem.z$Stream <- springrow$Stream
-# Again for habitat
-habheat <- heatmap(abs(cor(hab)), 
-        # Compute pearson correlation (note they are absolute values)
-        col = rev(heat.colors(6)), 
-        Colv = NA, Rowv = NA)
-legend("topright", 
-       title = "Absolute Pearson R",
-       legend =  round(seq(0,1, length.out = 6),1),
-       y.intersp = 0.7, bty = "n",
-       fill = rev(heat.colors(6)))
 
-habheat
+# Habitat
 # Scale and center variables
-hab <- select(hab, -c(Stream))
+
 hab.z <- decostand(hab, method = "standardize", na.rm =TRUE)
 hab.z <- hab.z[, colSums(hab.z != 0, na.rm = TRUE) > 0]
 
 # Variables are now centered around a mean of 0
 round(apply(hab.z, 2, mean), 1)
 apply(hab.z, 2, sd)
+
+# check for colliniearity
+pairs(hab.z)
+
+model <- lm(ppebbles ~ ., data = hab.z)
+vif(model)
+
+alias <- alias( lm(avg.slope ~ ., data = hab.z) )
+alias
+
+cor <- cor(hab.z)
+cor 
 
 hab.z$Stream <- springrow$Stream
 
@@ -100,15 +100,14 @@ spe.hel <- spe.hel[-c(32),]
 library("geosphere")
 library(sp)
 library(sf)
-library(tidyverse)
-library(vegan)
 
 spring.xy <- read.csv("spring_coord_notrib.csv") %>%
-filter(Site != "EAS9") %>%
-filter(Site != "FRY8")%>%
-filter(Site != "FRY9")%>%
-filter(Site != "ROL7") %>%
-filter(Site != "SPC6") %>%
+#filter(Stream == "SPC (MI)") %>%
+#filter(Site != "EAS9") %>%
+#filter(Site != "FRY8")%>%
+#filter(Site != "FRY9")%>%
+#filter(Site != "ROL7") %>%
+#filter(Site != "SPC6") %>%
   select(-c("Stream","Site"))
 
 site.loc.sp = sp::SpatialPointsDataFrame(coords = data.frame(spring.xy$x, 
@@ -144,12 +143,17 @@ mod.pcnm <- pcnm( dist(spring.xy) )
 vectors.pcnm <- data.frame(mod.pcnm$vectors)
 
 #specified knts, implications?
-ordisurf(spring.xy, scores(mod.pcnm, choi=1), bubble = 4,knots = 5, main = "PCNM 1")
 
-ordisurf(spring.xy, scores(mod.pcnm, choi=13), bubble = 4, main = "PCNM 13")
+plot <- ordisurf(spring.xy, scores(mod.pcnm, choi=2), bubble = 4, knots = 7)
+
+png("PCNMall.png", width = 600, height = 600)
+plot(plot, main = "SPC (MI) Spring 2022: PCNM 2")
+dev.off()
 
 com <- read.csv("bugid.csv")  %>%
-  filter(Season == "Fall") %>%
+  filter(Season == "Spring") %>%
+  #filter(Site != "EAS1") %>%
+  #filter(Stream == "ROL (MI)")%>%
   select(-c(Stream:Site))
 com.hel <- decostand( com, "hel")
 
@@ -157,19 +161,20 @@ com.hel <- decostand( com, "hel")
 d.space <- data.frame( spring.xy, vectors.pcnm)
 #combine all spatial variables, x, y, and PCNMs
 
-d.space.scaled <- data.frame( scale(d.space) )
+d.space.scaled <- data.frame( scale(d.space) ) %>%
+  select(-c(x_utm:y_utm))
 #center spatial variables on 0, and standardize
 # null model with intercept
 mod.0 <- rda( com.hel ~ 1, data = d.space.scaled)
 plot(mod.1)
-anova.cca(mod.1)
+anova.cca(mod.0)
 
 # model with all spatial variables included
-mod.1 <- rda( com.hel ~ ., data = d.space.scaled)
+mod.1 <- rda(com.hel ~ ., data = d.space.scaled)
 
  #stepwise selection of the best model
 mod.best <- ordiR2step(rda( com.hel ~1, data = d.space.scaled), scope = formula(mod.1),  
-                       direction = "forward",
+                       direction = "backward",
                        R2scope = FALSE, # can't surpass the "full" model's R2
                        pstep = 1000,
                        trace = FALSE)
@@ -181,10 +186,11 @@ S.keepers <- names( mod.best$terminfo$ordered )
 S.keepers
 
 # Chem
-chem <- read.csv("chem.f21-s22.notrib.reduced.csv")%>%
-  filter(season == "Fall") %>%
-  filter(Site != "SPC6")%>%
-  select(do.mgl:so4.hco3)
+chem <- read.csv("chem.pca.csv")%>%
+  filter(season == "Spring") %>%
+  #filter(Stream == "CRO (R)") %>%
+  #filter(Site != "SPC6")%>%
+  select(do.mgl:elements.pca)
 chem <- chem[, colSums(chem != 0, na.rm = TRUE) > 0] 
 chem.z <- decostand(chem, method = "standardize",  na.rm =TRUE)
 chem.z <- chem.z %>%
@@ -197,22 +203,24 @@ apply(chem.z, 2, sd)
 
 #chem.z$Stream <- springrow$Stream
 
-mod.0 <- rda(com.hel ~ 1, data = chem.z)
+mod.0 <-rda(com.hel ~ 1, data = chem.z)
+
 mod.1 <- rda(com.hel ~ ., data = chem.z)
 
 #stepwise selection of the best model
-mod.best <- ordiR2step(mod.0, scope = mod.1, R2scope = FALSE)
+mod.best <- ordiR2step(mod.0, scope = mod.1, direction = "backward",R2scope = FALSE)
 C.keepers <- names(mod.best$terminfo$ordered)
 C.keepers
 
 #Habitat
-hab <- read.csv("habitatmaster.csv") %>%
-  filter(Site != "EAS9") %>%
-  filter(Site != "FRY8")%>%
-  filter(Site != "FRY9")%>%
-  filter(Site != "ROL7") %>%
-  filter(Site != "SPC6") %>%
-select(-c(Stream:smallcobble)) 
+hab <- read.csv("hab.pca.csv") %>%
+  select(-c(LCF)) %>%
+  #filter(Site != "EAS1") %>%
+  #filter(Site != "FRY8")%>%
+  #filter(Site != "FRY9")%>%
+  #filter(Site != "ROL7") %>%
+  #filter(Site != "SPC6") %>%
+select(-c(Stream:Site)) 
 hab.z <- decostand(hab, method = "standardize", na.rm =TRUE)
 hab.z <- hab.z[, colSums(hab.z != 0, na.rm = TRUE) > 0]
 
@@ -226,13 +234,13 @@ mod.0 <- rda(com.hel ~ 1, data = hab.z)
 mod.1 <- rda(com.hel ~ ., data = hab.z)
 
 #stepwise selection of the best model
-mod.best <- ordiR2step(mod.0, scope = mod.1, direction = "forward",
+mod.best <- ordiR2step(mod.0, scope = mod.1, direction = "backward",
                        R2scope = FALSE, # can't surpass the "full" model's R2
                        pstep = 1000,
                        trace = FALSE) 
 
-mod.best <- ordiR2step(rda( com.hel ~1, data = hab.z), scope = formula(mod.1),  
-                       direction = "forward",
+#mod.best <- ordiR2step(rda( com.hel ~1, data = hab.z), scope = formula(mod.1),  
+                       direction = "backward",
                        R2scope = FALSE, # can't surpass the "full" model's R2
                        pstep = 1000,
                        trace = FALSE)
@@ -247,15 +255,16 @@ all <- varpart(com.hel, d.C, d.H, d.S)
 plot(all)
 
 S.keepers
+C.keepers
+H.keepers
 
 
 #setwd("/Users/melaniemcmillan/Desktop/McMillan_R/Spatial_Comm_Comp_F21-S22")
-png("varpart.C&H&S.ex.fal.png", width = 500, height = 500)
+png("varpart.C&H&S.springall.png", width = 500, height = 500)
 plot(all, Xnames = c("Water \nQuality","Habitat", "Space"))
-title(main = "All Streams Fall", sub = "Drivers: avgwetwidth, pfine, D50, avg.slope, avgvegprotecR, avgbankstabL, /n
-      D90, avgembedd, ba.ugl, so4.hco3, npoc.mgl, li.ugl, hco3.mgl, sr.ugl, /n
-      fe.ugl, ca.mgl, al.ugl, hardness.mgl, cu.ugl, ph, so4.mgl, k.mgl /n
-      latitude, longitude, PCNM1,2,3,4,5, and 7")
+title(main = "All Streams Spring", sub = "Drivers: SC, hardness, NPOC, elements,
+      temp., DO, nutrients, %fines, \nslope, pebble dimensions, embededness, 
+      wetted width, riparian characteristics, PCNM1,2,4,5, and 6")
 dev.off()
 
 #RDA with species

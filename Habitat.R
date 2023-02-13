@@ -22,8 +22,8 @@ library("vegan")
 library("ggpubr")
 
 pebraw <- read_csv("pebblecounts.csv") 
-pebraw <- select(pebraw, c(1:16))
-peb <- pivot_longer(pebraw, c(2:16)) 
+pebraw <- select(pebraw, c(1:15))
+peb <- pivot_longer(pebraw, c(2:15)) 
 num <- as.numeric(peb$name)
 peb$pebble_size <- num
 
@@ -58,13 +58,13 @@ pebquartiles <- pebquartiles %>%
 # Start by dividing the data into categories
 
 pebcat<- peb %>%
-  mutate(category = case_when(pebble_size <= 4 ~ "fines",
-                                pebble_size > 4 &
+  mutate(category = case_when(pebble_size <= 2.8 ~ "fines",
+                                pebble_size > 2.8 &
                               pebble_size < 64 ~ "pebbles", 
                                 pebble_size >= 64 &
                               pebble_size < 128  ~ "smallcobble", 
                                 pebble_size >= 128 &
-                              pebble_size <= 4000 ~ "largecobble"))
+                              pebble_size <= 180 ~ "largecobble"))
          
 # determine percents
 peb2adj <- aggregate(value ~ category + Site, data = pebcat, FUN = sum, na.rm = TRUE) %>%

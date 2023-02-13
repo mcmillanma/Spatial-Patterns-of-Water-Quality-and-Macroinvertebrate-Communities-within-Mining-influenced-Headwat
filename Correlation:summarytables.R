@@ -71,14 +71,32 @@ bug.dist.cor <- left_join(metrics, dis.simm, by = c("Site" = "End"))
 #bug.dist.cor <- left_join(bug.dist.cor, chem, by = "Site" ) # for sc to distance graph
 
 library(dplyr)
+library(ggplot2)
+library(ggpubr)
+library(boot)
 
 # prepare data to be used (sc and all metrics)
 c.df <- read.csv("metrics.f21-s22.csv") %>%
-  filter( Season == "Spring")
+  dplyr::filter(Season == "Spring")
 chem <- read.csv("chem.f21-S22.notrib.csv") %>%
-  filter( season == "Spring")
-c.df <- left_join(c.df, chem, by = c("Site","Season" = "season", "Stream", "dist.d"))
+  dplyr::filter( season == "Spring")
+c.df <- dplyr::left_join(c.df, chem, by = c("Site","Season" = "season", "Stream", "dist.d"))
 #c.df <- select(c.df, c(1, 3, 7:65)) # 3 is dist, 70 is sc
+
+x <- list(c.df$dist.d)
+y <- list(c.df$sc.uScm)
+#fit linear regression model
+model <- lm(y~x)
+
+#find optimal lambda for Box-Cox transformation 
+bc <- boxcox(y ~ x)
+(lambda <- bc$x[which.max(bc$y)])
+
+[1] -0.4242424
+
+#fit new linear regression model using the Box-Cox transformation
+new_model <- lm(((y^lambda-1)/lambda) ~ x)
+scxdist
 
 # Split by stream and determine if data is normal use rcorr instead of cor to get p and cor value values
 
@@ -145,18 +163,20 @@ rownames <- rownames(fry.p)
 fry <- add_column(fry, rownames)
 fry <- filter(fry, p.spring <= 0.05)
 
+library(boot)
+
 #LLW
 LLW <- filter(c.df, Stream == "LLW (MI)") %>%
-  select(c(7:65, 70))
-llw <- rcorr(as.matrix(LLW), type = "spearman")
+  select(c(3, 7:65))
+llw <- rcorr(as.matrix(LLW), type = "pearson")
 llw.r = data.frame(llw$r) %>%
-  select("sc.uScm")
+  select("dist.d")
 llw.p = data.frame(llw$P) %>%
-  select("sc.uScm")
+  select("dist.d")
 llw <- NULL
-llw$p.spring <- llw.p$sc.uScm
+llw$p.spring <- llw.p$dist.d
 llw$metrics <- llw.p$rownames
-llw$r.spring <- llw.r$sc.uScm
+llw$r.spring <- llw.r$dist.d
 llw <- as.data.frame(llw)
 rownames <- rownames(llw.p)
 llw <- add_column(llw, rownames)
