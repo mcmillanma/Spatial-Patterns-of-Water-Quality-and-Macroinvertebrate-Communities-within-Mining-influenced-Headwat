@@ -11,7 +11,8 @@ library(ggplot2)
 library(tidyverse)
 library(ggpubr)
 
-
+bugs <- read_csv("bugid.csv") %>%
+  filter(Season == "Spring") 
 
 #source: https://jkzorz.github.io/2020/04/04/NMDS-extras.html
 
@@ -39,76 +40,41 @@ habitat <- read.csv("habitatmaster.csv") %>% # needs to match length of bugs
   select( c(1, 7:9, 11,12, 16, 17, 20, 21, 22, 23, 29, 32))   # avg.slope, avgriparianwidR, avgriparianwidL, avgvegprotecR, D50, avgwetwidth, pfines, psmallcobble, ppebbles, avgembedd
 
 
-#habitatmaster from Habitat.R
-
-#subset your data so that you have a data frame with only environmental variables (env), and a data frame with only species abundance data (com)
-com = bugs.s[,3:119]
-env = habitat[,2:14] #habitat and water chem
-
-#convert com to a matrix
-m_com = as.matrix(com)
-
-#nmds code
-set.seed(123)
-nmds = metaMDS(m_com, distance = "bray")
-scores <- scores(nmds)
-
-
-en = envfit(nmds, env, permutations = 999, na.rm = TRUE)
-en
-
-plot(nmds)
-plot(en, p.max = 0.05)
-
-#n add columns from your original data that contain information that you would like to include in your plot
-data.scores = as.data.frame(scores(nmds)$sites)
-data.scores$Stream = habitat$Stream
-
-
-#Because my data contained only continuous environmental variables, I’m extracting the information from both separately using the “vectors” and not “factors” options.
-en_coord_cont = as.data.frame(scores(en, "vectors")) * ordiArrowMul(en)
-
-
-#plot it
-nmds.s <- ggplot(data = data.scores, aes(x = NMDS1, y = NMDS2)) + 
-  geom_point(data = data.scores, aes(colour = Stream), size = 3, alpha = 0.5) +
-  geom_segment(aes(x = 0, y = 0, xend = NMDS1, yend = NMDS2), 
-               data = en_coord_cont, size =1, alpha = 0.5, colour = "grey30") + 
-  geom_point(data = en_coord_cont, aes(x = NMDS1, y = NMDS2)) +
-  geom_text(data = en_coord_cont, aes(x = NMDS1, y = NMDS2), colour = "grey30", 
-            fontface = "bold", label = row.names(en_coord_cont), nudge_y = 0.1) + 
-  theme(axis.title = element_text(size = 10, face = "bold", colour = "grey30"), 
-        panel.background = element_blank(), panel.border = element_rect(fill = NA, colour = "grey30"), 
-        axis.ticks = element_blank(), axis.text = element_blank(), legend.key = element_blank(), 
-        legend.title = element_text(size = 10, face = "bold", colour = "grey30"), 
-        legend.text = element_text(size = 9, colour = "grey30")) + 
-  labs(colour = "Stream") +
-  ggtitle("Environmental Controls on Community Composition (Spring 2022)") +
-  theme_classic() +
-  theme(plot.title = element_text(hjust = 0.5, size = 15, face = "bold"))
-
-nmds.s
-nmds.f
-
-nmds <- ggarrange(nmds.f, nmds.s, ncol=1)
-nmds
-#set size and save plot as png
-png("NMDS_abund_hab_season.png", width = 800, height = 1000)
-plot(nmds)
-dev.off()
-
-
 ## source: https://www.youtube.com/watch?v=QljEeBei-JA; 
 # source: https://rstatisticsandresearch.weebly.com/uploads/1/0/2/6/1026585/nmds_updatedscript.r
 # subset the dataframe on which to base the ordination (dataframe 1)
-data_1 <- bugs[,7:155]
+data_1 <- bugs[,4:120]
 
 #Identify the columns that contains the descriptive/environmental data (dataframe 2)
-data_2 <- bugs[,4:5]
+data_2 <- bugs[,1:3]
 
 
 #ordination by NMDS
-NMDS <- metaMDS(data_1, distance = "bray", k = 2)
+nmds <- metaMDS(data_1, distance = "bray", k=2, trymax=1, 
+                autotransform=TRUE, noshare=0.1, expand=TRUE, trace=1, plot=FALSE)
+plot1 <- ordiplot(nmds, choices=c(1,2))
+
+data.scores = as.data.frame(scores(nmds)$sites)
+nmds$stress
+stressplot(nmds)
+# Note, I set trymax = 100 because at the default 20 it was not converging
+
+# envfit. First make dataframe for environmental variables
+
+ef <- envfit(nmds, data_1)
+ef
+# Note that salinity is NOT significantly correlated with community structure
+
+# Default vegan plot with vector
+plot(nmds)
+plot(ef)
+
+# Edit dataframe
+str(Invertebrates)
+names(Invertebrates)[1] <- "Site"
+Invertebrates$NMDS1 <- scores(nmds)[,1]
+Invertebrates$NMDS2 <- scores(nmds)[,2]
+
 
 #########################
 #Data visualisation (THIS IS AN UPDATED VERSION OF THE SCRIPT, NOW USING GGPLOT)
@@ -134,12 +100,15 @@ ggplot(scores, aes(x = NMDS1, y = NMDS2, colour = Stream)) +
   theme_bw()+ 
   theme(legend.position="right",legend.text=element_text(size=10),legend.direction='vertical')
 
+# ADD VECTORS
+
 #####################
 #Bootstrapping and testing for differences between the groups
-fit <- adonis(data_1 ~ Stream, data=data_2, permutations=999, method="bray")
+fit <- adonis2(data_1 ~ Stream, data=data_2, permutations=999, method="bray")
 fit
-?be#####################
+#####################
 #Check assumption of homogeneity of multivariate dispersion
+
 distances_data <- vegdist(data_1)
 anova(betadisper(distances_data, data_2$Stream))
 
@@ -183,32 +152,6 @@ fit
 distances_data <- vegdist(chem_1)
 anova(betadisper(distances_data, chem_2$Stream))
 
-#########################
-#Data visualisation (THIS IS AN UPDATED VERSION OF THE SCRIPT, NOW USING GGPLOT)
-install.packages("ggplot2")
-library("ggplot2")
-
-#Extract the axes scores
-datascores <- as.data.frame(scores(NMDS))  #extract the site scores
-
-#Add/calculate spider diagram
-scores <- cbind(as.data.frame(datascores), Stream = data_2$Stream)
-centroids <- aggregate(cbind(NMDS1, NMDS2) ~ Stream, data = scores, FUN = mean)
-seg <- merge(scores, setNames(centroids, c('Stream','oNMDS1','oNMDS2')),
-             by = 'Stream', sort = FALSE)
-
-#plot
-ggplot(scores, aes(x = NMDS1, y = NMDS2, colour = Stream)) +
-  geom_segment(data = seg,
-               mapping = aes(xend = oNMDS1, yend = oNMDS2)) + # add spiders
-  geom_point(data = centroids, size = 4) +                    # add centroids
-  geom_point() +                                              
-  coord_fixed()+                                              
-  theme_bw()+ 
-  theme(legend.position="right",legend.text=element_text(size=10),legend.direction='vertical')
-
-#####################
-#as.numeric(unlist(x)) 
 
 #PCA
 library(devtools)

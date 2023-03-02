@@ -49,7 +49,7 @@ dev.off()
 #Figure 5
 
 metrics <- read_csv("metrics.f21-s22.csv")
-chem <- read_csv("chem.f21-s22.notrib.csv") %>%
+chem <- read_csv("chem.f21-s22.notrib.reduced.csv") %>%
   filter(season == "Spring")
 
 sc <- left_join(metrics, chem, by = c("Site","Season" = "season", "Stream", "dist.d")) %>%
@@ -57,11 +57,11 @@ sc <- left_join(metrics, chem, by = c("Site","Season" = "season", "Stream", "dis
 
 #pE, rich.EPT, rich.SC
 
-rich.SC<- sc %>% ggplot(aes(x=sc.uScm , y=rich.SC, color = Stream))+
+VASCI<- sc %>% ggplot(aes(x=dist.d , y=VASCI, color = Stream))+
   geom_point()  +
   facet_wrap("Stream") +
   stat_smooth(method = "lm", linetype = 2) +
-  stat_cor(method = "spearman", label.y = 15, size = 10) +
+  stat_cor(method = "spearman", label.y = 50) +
   scale_color_manual(values = c("chartreuse",
                                 "chartreuse3",
                                 "violetred1",
@@ -69,9 +69,10 @@ rich.SC<- sc %>% ggplot(aes(x=sc.uScm , y=rich.SC, color = Stream))+
                                 "violetred3",
                                 "violetred4")) +
   theme_classic()+
-  xlab("SC (uS/cm)") +
-  ylab("Scraper Richness") +
-  #labs(title = "Percent Ephemeroptera vs \n Specific Conductance") +
+  xlab("Distance Downstream (m)") +
+  ylab("VASCI") 
+VASCI 
+#labs(title = "Percent Ephemeroptera vs \n Specific Conductance") +
   theme(axis.title.x =element_text(size = 50), axis.text.x = element_text(size = 25),
         axis.title.y =element_text(size = 50), axis.text.y  = element_text(size = 25),
         strip.text.x = element_text(size = 30), 
@@ -92,8 +93,8 @@ fig4 <-annotate_figure(fig4, top = text_grob("Select Compositional Metrics vs Sp
 fig4
 
 #set size and save plot as png
-png("fig4.png", width = 3000, height = 1000)
-plot(fig4)
+png("VASCIreg.png", width = 750, height = 600)
+plot(VASCI)
 dev.off()
 
 # Fig 6
@@ -262,6 +263,123 @@ plot
 png("RDA.fall.spc.png", width = 600, height = 430)
 plot(spc)
 dev.off()
-  
+
+######################################################
+######   VLWA   ############################################################
+######################################################
+
+chem <- read_csv("chem.pca.csv") %>%
+  filter(season == "Spring")
+hab <- read.csv("hab.pca.csv")
+env <- left_join(chem, hab, by = c("Site", "Stream"))
+env <- left_join(env, metrics, by = c("Site", "Stream",  "season" = "Season")) %>%
+  select(-c(27:66))
+env$group <- factor(env$stream, levels = c("Reference 1", "Reference 2", "Mined 1", "Mined 2", "Mined 3", "Mined 4"))
+boxplot(env$VASCI ~ env$group)
+
+metrics <- read_csv("metrics.reduced.csv") %>%
+  filter(Season == "Spring")
+all <- left_join(chem, metrics, by = c("stream", "Stream", "Impact", "Site"))
+all$group <- factor(all$stream, levels = c("Reference 1", "Reference 2", "Mined 1", "Mined 2", "Mined 3", "Mined 4"))
+boxplot(all$sc.uScm ~ all$group)
 
   
+longterm <- env %>%
+  filter( Site %in% c("EAS1", "CRO2", "FRY1", "LLW3", "ROL2", "SPC1"))
+
+box <- all %>% #Dataframe from which data will be drawn
+  ggplot(aes(x = group, y = sc.uScm, color = Impact)) +#Instead of hard-coding a factor reorder, you can call it within the plotting function
+  geom_boxplot(alpha = 0, size = 1) + #I like to set the color of boxplots to black with the alpha at 0 (fully transparent). I also like geom_jitter() but do not use it here for simplicity.
+  geom_point(size = 3) +
+  geom_point(data = longterm, aes(stream, sc.uScm), color = "black") +
+  theme_classic() +
+  #scale_colour_viridis_d()+ #viridis color blind friendly
+  xlab("Stream (Spring)") +
+  ylab("SC (uS/cm)") +
+  theme(axis.text = element_text(size = 18, color = "black"),
+        axis.title.x =element_text(size = 20, color = "black"),
+        axis.title.y =element_text(size = 20, color = "black"),
+        legend.text=element_text(size=18, color = "black"), 
+        legend.title=element_text(size=20, color = "black"))#+
+#geom_text(data = letters.df, aes(x = Stream, y = Placement.Value, label = Letter), size = 4, color = "black", hjust = -1.25, vjust = -0.8, fontface = "bold")
+box
+
+png("SC.box.png", width = 850, height = 600)
+plot(box)
+dev.off()
+
+Predper <- all %>% #Dataframe from which data will be drawn
+  ggplot(aes(x =group, y = pPR, color = Impact)) +#Instead of hard-coding a factor reorder, you can call it within the plotting function
+  geom_boxplot(alpha = 0, size = 1) + #I like to set the color of boxplots to black with the alpha at 0 (fully transparent). I also like geom_jitter() but do not use it here for simplicity.
+  geom_point(size = 3) +
+  geom_point(data = longterm, aes(group,pPR), color = "black") +
+  theme_classic() +
+  #scale_colour_viridis_d()+ #viridis color blind friendly
+  xlab("Stream (Spring)") +
+  ylab("Percent Predators") +
+  theme(axis.text = element_text(size = 18, color = "black"),
+        axis.title.x =element_text(size = 20, color = "black"),
+        axis.title.y =element_text(size = 20, color = "black"),
+        legend.text=element_text(size=18, color = "black"), 
+        legend.title=element_text(size=20, color = "black"))#+
+#geom_text(data = letters.df, aes(x = Stream, y = Placement.Value, label = Letter), size = 4, color = "black", hjust = -1.25, vjust = -0.8, fontface = "bold")
+p5dom
+EPTrich
+Shan
+Scraprich
+Clingrich
+Predper
+
+plot <- ggarrange(p5dom, EPTrich, Shan, Scraprich, Clingrich, Predper)
+plot
+
+png("SC.box.png", width = 2550, height = 1200)
+plot(plot)
+dev.off()
+
+plot <- all %>% ggplot(aes(x=sc.uScm , y=VASCI))+
+  geom_point(aes(color = Impact))  +
+  stat_smooth(method = "lm", linetype = 2, colour = "black") +
+  geom_point(data = longterm, aes(x=sc.uScm , y=VASCI), color = "black") +
+  facet_wrap("group") +
+  theme_classic()+
+  xlab("Specific Conductance (uS/cm)") +
+  ylab("VASCI") +
+  scale_y_continuous() +
+  theme(axis.text = element_text(size = 18, color = "black"),
+        axis.title.x =element_text(size = 20, color = "black"),
+        axis.title.y =element_text(size = 20, color = "black"),
+        legend.text=element_text(size=18, color = "black"), 
+        legend.title=element_text(size=20, color = "black"),
+        strip.text.x = element_text(size = 18))
+plot
+
+png("SC.line.png", width = 850, height = 600)
+plot(plot)
+dev.off()
+
+plot <- env %>% ggplot(aes(x=avgwetwidth , y=VASCI))+
+  geom_point(aes(color = Impact))  +
+  stat_smooth(method = "lm", linetype = 2, colour = "black") +
+  geom_point(data = longterm, aes(x=avgwetwidth , y=VASCI), color = "black") +
+  facet_wrap("group") +
+  theme_classic()+
+  xlab("Wetted Width") +
+  ylab("VASCI") +
+  scale_y_continuous() +
+  theme(axis.text = element_text(size = 18, color = "black"),
+        axis.title.x =element_text(size = 20, color = "black"),
+        axis.title.y =element_text(size = 20, color = "black"),
+        legend.text=element_text(size=18, color = "black"), 
+        legend.title=element_text(size=20, color = "black"),
+        strip.text.x = element_text(size = 18))
+plot
+
+png("slope.png", width = 850, height = 600)
+plot(plot)
+dev.off()
+
+
+  
+
+

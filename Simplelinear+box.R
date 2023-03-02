@@ -3,7 +3,10 @@ library(ggpubr)
 
 metrics <- read.csv("metrics.f21-s22.csv")
 #distance.d <- read.csv("distance.csv")
-chem <- read.csv("chem.f21-S22.notrib.csv") 
+chem <- read.csv("chem.f21-S22.notrib.reduced.csv") %>%
+  dplyr::filter(season == "Spring")
+
+
 #chem <- left_join(distance.d, chem, by = c("site" = "Site")) 
 hab <- read.csv("habitatmaster.csv")
 reg <- left_join(metrics, chem, by = c("Site", "Season" = "season", "dist.d", "Stream")) # %>%
@@ -41,14 +44,21 @@ placement <- reg %>% #We want to create a dataframe to assign the letter positio
 
 colnames(placement)[2] <- "Placement.Value"
 letters.df <- left_join(letters.df, placement) #Merge dataframes
+library(ggplot2)
+longterm <- chem %>%
+  filter( Site %in% c("EAS1", "CRO2", "FRY1", "LLW3", "ROL2", "SPC1"))
 
-box.s <- reg %>% #Dataframe from which data will be drawn
-  ggplot(aes(x = reorder(Stream, sc.uScm, median), y = sc.uScm, color = Stream)) + #Instead of hard-coding a factor reorder, you can call it within the plotting function
-  geom_boxplot(alpha = 0) + #I like to set the color of boxplots to black with the alpha at 0 (fully transparent). I also like geom_jitter() but do not use it here for simplicity.
-  theme_classic() + #Clean, minimal theme courtesy of the "egg" package
+box.s <- chem %>% #Dataframe from which data will be drawn
+  ggplot(aes(x = reorder(Stream, sc.uScm, median), y = sc.uScm, color = Impact)) +#Instead of hard-coding a factor reorder, you can call it within the plotting function
+  geom_boxplot(alpha = 0, size = 1) + #I like to set the color of boxplots to black with the alpha at 0 (fully transparent). I also like geom_jitter() but do not use it here for simplicity.
+  geom_point(size = 3) +
+    geom_point(data = longterm, aes(Stream, sc.uScm), color = "black") +
+  theme_classic() +
+  #scale_colour_viridis_d()+ #viridis color blind friendly
   xlab("Stream (Spring)") +
   ylab("SC (uS/cm)") +
-  geom_text(data = letters.df, aes(x = Stream, y = Placement.Value, label = Letter), size = 4, color = "black", hjust = -1.25, vjust = -0.8, fontface = "bold")
+  theme(axis.text = element_text(size = 18, color = "black"))#+
+  #geom_text(data = letters.df, aes(x = Stream, y = Placement.Value, label = Letter), size = 4, color = "black", hjust = -1.25, vjust = -0.8, fontface = "bold")
 box.s
 
 box.f <- reg %>% #Dataframe from which data will be drawn
