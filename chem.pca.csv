@@ -1,4 +1,4 @@
-Stream,dist.d,Site,sample.year,season,do.mgl,temp.C,sc.uScm,hardness.mgl,npoc.mgl,nutrients.pca,elements.pca
+Stream,dist.d,Site,sample.year,Season,do.mgl,temp.C,sc.uScm,hardness.mgl,npoc.mgl,nutrients.pca,elements.pca
 CRO (R),2050,CRO1,2022,Spring,11.5,8.6,51,17.5,1.14,1.174959555,-2.304914865
 CRO (R),1900,CRO2,2022,Spring,11.3,8.8,54,17.2,1.12,1.46259204,-2.384374526
 CRO (R),1530,CRO3,2022,Spring,10.8,8.9,55,17.5,1.1,0.521243209,-2.285540844

@@ -3,44 +3,26 @@
 library(tidyverse)
 library(vegan) #decostand(), 
 library(ggpubr) #stat_compare_means
+library("multcompView")
+library(car) #leveneTest
 
-master <- read.csv("reduced.all.data.csv")
+metrics <- read.csv("metrics.f21-s22.csv") 
+metrics <- metrics %>%
+  mutate(n.pSC = sqrt(pSC)) %>%
+  mutate(n.rich.PR = log(rich.PR))
+metrics.s <- filter(metrics, Season == "Spring")
+metrics.s$group <- factor(metrics.s$Stream, levels = c("EAS (R)", "CRO (R)", 
+                                                       "FRY (MI)", "SPC (MI)", 
+                                                       "ROL (MI)", "LLW (MI)"))
+metrics.f <- filter(metrics, Season == "Fall")
+metrics.f$group <- factor(metrics.f$Stream, levels = c("EAS (R)", "CRO (R)", 
+                                                       "FRY (MI)", "SPC (MI)", 
+                                                       "ROL (MI)", "LLW (MI)"))
 
-chem <- read.csv("chem.f21-S22.notrib.reduced.csv") #%>%
-  filter(season == "Spring") %>%
-  select(-c( 35))
-habitat <- read.csv("habitatmaster.csv")
-metrics <- read.csv("metrics.f21-s22.csv")%>%
-  filter(Season == "Spring")
+longterm <- metrics.f %>%
+  filter( Site %in% c("EAS1", "CRO2", "FRY1", "LLW3", "ROL2", "SPC1"))
 
-all.s <- left_join(metrics, chem,  by = "Site") %>%
-  left_join(habitat,  by = "Site") %>%
-  select(-c(1:6, 66:69, 105)) #%>%
-  #decostand(method = "log",  na.rm =TRUE) 
-all.s <- cbind(all.s[1], all.s[,1:125]^(1/2))# %>%
-  select(c(2:126))
-
-
-master.s <- master %>%
-  filter(Season == "Spring") #%>%
-  #filter(Stream == "LLW (MI)") %>%
-  select(-c(Stream:Season, as.ugl)) %>%
-  select_if(~ ! any(is.na(.)))
-springrow <-  read.csv("reduced.all.data.csv") %>%
-  filter(Season == "Spring") %>%
-  select(Stream) 
-master.s$Stream <- springrow$Stream
-
-master.f <- master %>%
-  filter(Season == "Fall") %>%
-  select(-c(Stream:Season)) %>%
-  select_if(~ ! any(is.na(.)))
-fallrow <-  read.csv("reduced.all.data.csv") %>%
-  filter(Season == "Fall") %>%
-  select(Stream) 
-master.f$Stream <- fallrow$Stream
-
-#test normaility with shapiro and variance with levene
+###### Transform and Test normality (normality =shapiro and variance with levene) #####
 library(MASS)
 
 trans <- apply(all.s, 2, shapiro.test)
@@ -81,92 +63,116 @@ master.f <- master %>%
   select_if(~ ! any(is.na(.)))
 master.f$Stream <- fallrow$Stream
 
-shapiro.test(metrics$VASCI)
+shapiro.test(metrics.f$n.pSC)
 # greater than 0.05 = normal
-library(car)
-leveneTest(sc.uScm~Stream, data=master.s)
+#library(car)
+leveneTest(n.pSC~Stream, data=metrics.f)
 #less than 0.05 means non-parametric (heterogeneity of variance)
 
-p<-ggplot(master.s, aes(x=pPR)) + 
-  geom_histogram(bins = 15)
-p
-
-#ANOVA
+##########    ANOVA    ##########
 # https://www.r-bloggers.com/2021/08/how-to-perform-tukey-hsd-test-in-r/
-library(car)
-leveneTest(pPR~Stream, data=master.s)
-#less than 0.05 means non-parametric (heterogeneity of variance)
-# Anova Test for SC not valid because data is not normal 
 
+# pE, rich.E.less.B, rich.EPT, rich.SC, rich.Cling, p5dom
+# pSC,	richPR
+leveneTest(n.rich.PR~Stream, data=metrics.s)
+#less than 0.05 means non-parametric (heterogeneity of variance)
+
+
+longterm <- metrics.s %>%
+  filter( Site %in% c("EAS1", "CRO2", "FRY1", "LLW3", "ROL2", "SPC1"))
+
+# Creating a letters dataframe for ANOVA
+#https://www.mathiasecology.com/code/add-tukeys-significant-letters-to-ggplots
+#library("multcompView")
+
+###
+##### SPRING Anova
+###
 set.seed(1045)
-model <- aov(VASCI~Stream, data=metrics)
+model <- aov(n.pSC~Stream, data=metrics.s)
 summary(model)
 #less than 0.05 = there are differences
 TukeyHSD(model, conf.level=.95)
 plot(TukeyHSD(model, conf.level=.95), las = 2)
 
-# Creating a letters dataframe for ANOVA
-#https://www.mathiasecology.com/code/add-tukeys-significant-letters-to-ggplots
-library("multcompView")
-
-# Spring Anova
 letters.df <- data.frame(multcompLetters(TukeyHSD(
-  aov(VASCI~Stream, data=metrics))$Stream[,4])$Letters)
+  aov(n.pSC~Stream, data=metrics.s))$Stream[,4])$Letters)
 
 colnames(letters.df)[1] <- "Letter" #Reassign column name
 letters.df$Stream <- rownames(letters.df) #Create column based on rownames
 
-placement <- metrics %>% #We want to create a dataframe to assign the letter position.
+placement <- metrics.s %>% #We want to create a dataframe to assign the letter position.
   group_by(Stream) %>%
-  summarise(quantile(VASCI)[4])
+  summarise(quantile(n.pSC)[4])
 
 colnames(placement)[2] <- "Placement.Value"
-letters.df.s <- left_join(letters.df, placement) #Merge dataframes
+letters.df.s <- left_join(letters.df, placement, by = "Stream") #Merge dataframes
 # This is exactly what I need for the table except instead of leaders it would have 
 # sc.uScm and columns for all other metrics as well (also using kruskall values as Anova is not valid test for this data)
-library(ggpubr)
+#library(ggpubr)
 
-box.s <- metrics %>% #Dataframe from which data will be drawn
-  ggplot(aes(x = reorder(Stream, VASCI, median), y = VASCI, color = Stream)) + #Instead of hard-coding a factor reorder, you can call it within the plotting function
-  geom_boxplot(alpha = 0) + #I like to set the color of boxplots to black with the alpha at 0 (fully transparent). I also like geom_jitter() but do not use it here for simplicity.
-  theme_classic() + #Clean, minimal theme courtesy of the "egg" package
-  geom_point(data = longterm, aes(Stream, VASCI, color = Stream)) +
+box.s <- metrics.s %>% 
+  ggplot(aes(x = group, y = n.pSC, color = Impact)) + #Instead of hard-coding a factor reorder, you can call it within the plotting function
+  geom_boxplot(alpha = 0) +
+  geom_point(size = 3) +
+  geom_point(data = longterm, aes(Stream, n.pSC), color = "black") + 
+  theme_classic() + #+ #Clean, minimal theme courtesy of the "egg" package
   xlab("Stream (Spring)") +
-  ylab("VASCI") +
-  stat_compare_means(method = "anova")+
-  geom_text(data = letters.df.s, aes(x = Stream, y = Placement.Value, label = 
-                                       Letter), color = "black", hjust = -1.25,
+  #ylab("% SC") +
+  stat_compare_means(method = "anova") +
+  geom_text(data = letters.df.s, 
+            aes(x = Stream, y = Placement.Value, label = Letter), 
+            color = "black", hjust = -1.25,
             vjust = -0.8, fontface = "bold")
 box.s
-
 
 png("VASCI.png")
 plot(box.s)
 dev.off()
 
-# Fall Anova
+###
+##### Fall Anova
+###
+set.seed(1045)
+model <- aov(n.rich.PR~Stream, data=metrics.f)
+summary(model)
+#less than 0.05 = there are differences
+TukeyHSD(model, conf.level=.95)
+plot(TukeyHSD(model, conf.level=.95), las = 2)
+
+longterm <- metrics.f %>%
+  filter( Site %in% c("EAS1", "CRO2", "FRY1", "LLW3", "ROL2", "SPC1"))
+
 letters.df <- data.frame(multcompLetters(TukeyHSD(
-  aov(pChiO~Stream, data=master.f))$Stream[,4])$Letters)
+  aov(n.rich.PR~Stream, data=metrics.f))$Stream[,4])$Letters)
 
 colnames(letters.df)[1] <- "Letter" #Reassign column name
 letters.df$Stream <- rownames(letters.df) #Create column based on rownames
 
-placement <- master.f %>% #We want to create a dataframe to assign the letter position.
+placement <- metrics.f %>% #We want to create a dataframe to assign the letter position.
   group_by(Stream) %>%
-summarise(quantile(pChiO)[4])
+  summarise(quantile(n.rich.PR)[4])
 
 colnames(placement)[2] <- "Placement.Value"
-letters.df.f <- left_join(letters.df, placement) #Merge dataframes
+letters.df.s <- left_join(letters.df, placement, by = "Stream") #Merge dataframes
+# This is exactly what I need for the table except instead of leaders it would have 
+# sc.uScm and columns for all other metrics as well (also using kruskall values as Anova is not valid test for this data)
+#library(ggpubr)
 
-box.f <- master.f %>% #Dataframe from which data will be drawn
-  ggplot(aes( x = reorder(Stream, pChiO, median), y = pChiO, color = Stream)) + #Instead of hard-coding a factor reorder, you can call it within the plotting function
-  geom_boxplot(alpha = 0) + #I like to set the color of boxplots to black with the alpha at 0 (fully transparent). I also like geom_jitter() but do not use it here for simplicity.
-  theme_classic() + #Clean, minimal theme courtesy of the "egg" package
-  stat_summary(fun.y="mean")+ 
-  xlab("Stream (Fall)") +
-  #ylab("Percent Composed of 5 Dominant Taxa") +
-  stat_compare_means(method = "anova")+
-  geom_text(data = letters.df.f, aes(x = Stream, y = Placement.Value, label = Letter), size = 4, color = "black", hjust = -1.25, vjust = -0.8, fontface = "bold")
+box.f <- metrics.f %>% 
+  ggplot(aes(x = group, y = n.rich.PR, color = Impact)) + #Instead of hard-coding a factor reorder, you can call it within the plotting function
+  geom_boxplot(alpha = 0) +
+  geom_point(size = 3) +
+  geom_point(data = longterm, aes(Stream, n.rich.PR), color = "black") + 
+  theme_classic() + #+ #Clean, minimal theme courtesy of the "egg" package
+  xlab("Stream (Spring)") +
+  #ylab("% SC") +
+  stat_compare_means(method = "anova") +
+  geom_text(data = letters.df.s, 
+            aes(x = Stream, y = Placement.Value, label = Letter), 
+            color = "black", hjust = -1.25,
+            vjust = -0.8, fontface = "bold")
+
 box.f
 
 library(ggpubr)
@@ -178,60 +184,54 @@ png("box.aov.fall.ppr.png")
 plot(box.f)
 dev.off()
 
-# Kruskall-Wallis non-parametric statistically valid option
-
-# Spring Kruskall
-kruskal.test(sc.uScm ~ Stream, data = master)
-# less than 0.05 means there are differences among groups
+################################
+#### Kruskall-Wallis non-parametric statistically valid option
+####### see VASCI.R
 library(tidyr)
-library(FSA)
+library(FSA) #dunnTest
 
-Result = dunnTest(sc.uScm ~ Stream, data = master,
+###
+##### Spring Kruskall
+###
+
+longterm <- metrics.s %>%
+  filter( Site %in% c("EAS1", "CRO2", "FRY1", "LLW3", "ROL2", "SPC1"))
+
+kruskal.test(n.rich.PR~Stream, data=metrics.s)
+# less than 0.05 means there are differences among groups
+
+Result = dunnTest(n.rich.PR~Stream, data=metrics.s,
                   method="bonferroni")$res
-
-
-### Use cldList()
-
-library(rcompanion)
-
-X <- cldList(sc.uScm ~ Stream, data = master.s)
 
 ### Use multcompView
 #library(multcompView)
-#X = Result$P.adj <= 0.05
-#names(X) = gsub(" ",  "",  Result$Comparison)
-#multcompLetters(X)
 
-placement <- master.s %>% #We want to create a dataframe to assign the letter position.
+X = Result$P.adj <= 0.05
+names(X) = gsub(" ",  "", Result$Comparison)
+X <- multcompLetters(X)
+X <- as.data.frame(X$Letters) 
+colnames(X) <- c("Letters")
+
+placement <- metrics.s %>% #We want to create a dataframe to assign the letter position.
   group_by(Stream) %>%
-  summarise(quantile(sc.uScm)[4])
+  summarise(quantile(n.rich.PR)[4])
 
 colnames(placement)[2] <- "Placement.Value"
 letters.df.s <- cbind(X, placement)
+unique(letters.df.s)
 
-#p.s <- data.frame(pairwise.wilcox.test(master.s$sc.uScm, master.s$Stream,
-                                    # p.adjust.method = "BH")$p.value)
-
-
-#compare_means(sc.uScm ~ Stream, data = master.s)
-# only LLW-ROL was ns so they are the only value I graphed although ideally I need a way to make all others a and these 2 b like with the anova
-
-#https://www.r-bloggers.com/2017/06/add-p-values-and-significance-levels-to-ggplots/
-#my_comparisons <- list( c("EAS (R)", "CRO (R)"), c("EAS (R)", "FRY (MI)"), c("EAS (R)", "ROL (MI)"),
-                        #c("EAS (R)", "SPC (MI)"), c("EAS (R)", "LLW (MI)"), c("CRO (R)", "FRY (MI)"),
-                        #c("CRO (R)", "ROL (MI)"), c("CRO (R)", "SPC (MI)"), c("CRO (R)", "LLW (MI)"),
-                        #c("FRY (MI)", "ROL (MI)"), c("FRY (MI)", "SPC (MI)"), c("FRY (MI)", "LLW (MI)"), 
-                        #c("ROL (MI)", "SPC (MI)"), c("ROL (MI)", "LLW (MI)"), c("SPC (MI)", "LLW (MI)"))
-
-box.s <- master.s %>% #Dataframe from which data will be drawn
-  ggplot(aes(x = reorder(Stream, sc.uScm, median), y = sc.uScm, color = Stream)) + #Instead of hard-coding a factor reorder, you can call it within the plotting function
-  geom_boxplot(alpha = 0) + #I like to set the color of boxplots to black with the alpha at 0 (fully transparent). I also like geom_jitter() but do not use it here for simplicity.
-  theme_classic() #+ #Clean, minimal theme courtesy of the "egg" package
+box.s <- metrics.s %>% 
+  ggplot(aes(x = group, y = n.rich.PR, color = Impact)) + #Instead of hard-coding a factor reorder, you can call it within the plotting function
+  geom_boxplot(alpha = 0) +
+  geom_point(size = 3) +
+  geom_point(data = longterm, aes(Stream, n.rich.PR), color = "black") + 
+  theme_classic() + #+ #Clean, minimal theme courtesy of the "egg" package
   xlab("Stream (Spring)") +
-  #ylab("Clinger Richness") +
-  stat_compare_means(method = "kruskal")+
-  geom_text(data = letters.df.s, aes(x = Stream, y = Placement.Value, label = 
-                                       Letter), color = "black", hjust = -1.25,
+  #ylab("VASCI") +
+  stat_compare_means(method = "kruskal") +
+  geom_text(data = letters.df.s, 
+            aes(x = Stream, y = Placement.Value, label = Letters), 
+            color = "black", hjust = -1.25,
             vjust = -0.8, fontface = "bold")
 box.s
 
@@ -240,23 +240,49 @@ plot(box.s)
 dev.off()
 # less than 0.05 means they are different
 
-#Fall Kruskall
-# Spring
-kruskal.test(rich.EPT ~ Stream, data = master.f)
+###
+#### Fall Kruskall
+### 
+
+longterm <- metrics.f %>%
+  filter( Site %in% c("EAS1", "CRO2", "FRY1", "LLW3", "ROL2", "SPC1"))
+
+kruskal.test(pChi~Stream, data=metrics.f)
 # less than 0.05 means there are differences among groups
-library(tidyr)
 
+Result = dunnTest(n.pSC~Stream, data=metrics.f,
+                  method="bonferroni")$res
 
-box.f <- master.f %>% #Dataframe from which data will be drawn
-  ggplot(aes(x = Stream, y = sc.uScm, color = Stream)) + #Instead of hard-coding a factor reorder, you can call it within the plotting function
-  geom_boxplot(alpha = 0) + #I like to set the color of boxplots to black with the alpha at 0 (fully transparent). I also like geom_jitter() but do not use it here for simplicity.
-  theme_classic() + #Clean, minimal theme courtesy of the "egg" package
-  xlab("Stream (Fall)") +
-  ylab("SC (uS/cm)") +
-  stat_compare_means() +
-  #stat_compare_means(comparisons = my_comparisons)
-  stat_compare_means(comparisons = list
-                     (c("ROL (MI)", "SPC (MI)")), label.y = 1500)
+### Use multcompView
+#library(multcompView)
+
+X = Result$P.adj <= 0.05
+names(X) = gsub(" ",  "", Result$Comparison)
+X <- multcompLetters(X)
+X <- as.data.frame(X$Letters) 
+colnames(X) <- c("Letters")
+
+placement <- metrics.f %>% #We want to create a dataframe to assign the letter position.
+  group_by(Stream) %>%
+  summarise(quantile(n.pSC)[4])
+
+colnames(placement)[2] <- "Placement.Value"
+letters.df.s <- cbind(X, placement)
+unique(letters.df.s)
+
+box.f <- metrics.f %>% 
+  ggplot(aes(x = group, y = n.pSC, color = Impact)) + #Instead of hard-coding a factor reorder, you can call it within the plotting function
+  geom_boxplot(alpha = 0) +
+  geom_point(size = 3) +
+  geom_point(data = longterm, aes(Stream, n.pSC), color = "black") + 
+  theme_classic() + #+ #Clean, minimal theme courtesy of the "egg" package
+  xlab("Stream (Spring)") +
+  #ylab("VASCI") +
+  stat_compare_means(method = "kruskal") +
+  geom_text(data = letters.df.s, 
+            aes(x = Stream, y = Placement.Value, label = Letters), 
+            color = "black", hjust = -1.25,
+            vjust = -0.8, fontface = "bold")
 box.f
 
 box <- ggarrange(box.f, box.s, ncol = 2, common.legend = TRUE, legend = "bottom" )
