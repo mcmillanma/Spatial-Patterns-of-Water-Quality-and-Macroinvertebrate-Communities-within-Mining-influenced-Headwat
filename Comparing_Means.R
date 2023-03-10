@@ -73,7 +73,7 @@ leveneTest(n.pSC~Stream, data=metrics.f)
 # https://www.r-bloggers.com/2021/08/how-to-perform-tukey-hsd-test-in-r/
 
 # pE, rich.E.less.B, rich.EPT, rich.SC, rich.Cling, p5dom
-# pSC,	richPR
+
 leveneTest(n.rich.PR~Stream, data=metrics.s)
 #less than 0.05 means non-parametric (heterogeneity of variance)
 
@@ -89,21 +89,21 @@ longterm <- metrics.s %>%
 ##### SPRING Anova
 ###
 set.seed(1045)
-model <- aov(n.pSC~Stream, data=metrics.s)
+model <- aov(p5dom~Stream, data=metrics.s)
 summary(model)
 #less than 0.05 = there are differences
 TukeyHSD(model, conf.level=.95)
 plot(TukeyHSD(model, conf.level=.95), las = 2)
 
 letters.df <- data.frame(multcompLetters(TukeyHSD(
-  aov(n.pSC~Stream, data=metrics.s))$Stream[,4])$Letters)
+  aov(p5dom~Stream, data=metrics.s))$Stream[,4])$Letters)
 
 colnames(letters.df)[1] <- "Letter" #Reassign column name
 letters.df$Stream <- rownames(letters.df) #Create column based on rownames
 
 placement <- metrics.s %>% #We want to create a dataframe to assign the letter position.
   group_by(Stream) %>%
-  summarise(quantile(n.pSC)[4])
+  summarise(quantile(p5dom)[4])
 
 colnames(placement)[2] <- "Placement.Value"
 letters.df.s <- left_join(letters.df, placement, by = "Stream") #Merge dataframes
@@ -111,20 +111,28 @@ letters.df.s <- left_join(letters.df, placement, by = "Stream") #Merge dataframe
 # sc.uScm and columns for all other metrics as well (also using kruskall values as Anova is not valid test for this data)
 #library(ggpubr)
 
-box.s <- metrics.s %>% 
-  ggplot(aes(x = group, y = n.pSC, color = Impact)) + #Instead of hard-coding a factor reorder, you can call it within the plotting function
+p5dom <- metrics.s %>% 
+  ggplot(aes(x = group, y = p5dom, color = Impact)) + #Instead of hard-coding a factor reorder, you can call it within the plotting function
   geom_boxplot(alpha = 0) +
   geom_point(size = 3) +
-  geom_point(data = longterm, aes(Stream, n.pSC), color = "black") + 
+  geom_point(data = longterm, aes(Stream, p5dom), color = "black") + 
   theme_classic() + #+ #Clean, minimal theme courtesy of the "egg" package
   xlab("Stream (Spring)") +
-  #ylab("% SC") +
-  stat_compare_means(method = "anova") +
+  ylab("% 5 Dominant Taxa") +
+  stat_compare_means(method = "anova", size = 6) +
   geom_text(data = letters.df.s, 
             aes(x = Stream, y = Placement.Value, label = Letter), 
             color = "black", hjust = -1.25,
-            vjust = -0.8, fontface = "bold")
-box.s
+            vjust = -0.8, fontface = "bold") +
+  theme(axis.text = element_text(size = 18, color = "black"),
+        axis.title.x =element_text(size = 20, color = "black"),
+        axis.title.y =element_text(size = 20, color = "black"),
+        legend.text=element_text(size=18, color = "black"), 
+        legend.title=element_text(size=20, color = "black"),
+        strip.text.x = element_text(size = 18))
+rich.SC
+rich.Cling
+p5dom
 
 png("VASCI.png")
 plot(box.s)
@@ -134,7 +142,7 @@ dev.off()
 ##### Fall Anova
 ###
 set.seed(1045)
-model <- aov(n.rich.PR~Stream, data=metrics.f)
+model <- aov(rich.SC~Stream, data=metrics.f)
 summary(model)
 #less than 0.05 = there are differences
 TukeyHSD(model, conf.level=.95)
@@ -144,14 +152,14 @@ longterm <- metrics.f %>%
   filter( Site %in% c("EAS1", "CRO2", "FRY1", "LLW3", "ROL2", "SPC1"))
 
 letters.df <- data.frame(multcompLetters(TukeyHSD(
-  aov(n.rich.PR~Stream, data=metrics.f))$Stream[,4])$Letters)
+  aov(rich.SC~Stream, data=metrics.f))$Stream[,4])$Letters)
 
 colnames(letters.df)[1] <- "Letter" #Reassign column name
 letters.df$Stream <- rownames(letters.df) #Create column based on rownames
 
 placement <- metrics.f %>% #We want to create a dataframe to assign the letter position.
   group_by(Stream) %>%
-  summarise(quantile(n.rich.PR)[4])
+  summarise(quantile(rich.SC)[4])
 
 colnames(placement)[2] <- "Placement.Value"
 letters.df.s <- left_join(letters.df, placement, by = "Stream") #Merge dataframes
@@ -159,21 +167,28 @@ letters.df.s <- left_join(letters.df, placement, by = "Stream") #Merge dataframe
 # sc.uScm and columns for all other metrics as well (also using kruskall values as Anova is not valid test for this data)
 #library(ggpubr)
 
-box.f <- metrics.f %>% 
-  ggplot(aes(x = group, y = n.rich.PR, color = Impact)) + #Instead of hard-coding a factor reorder, you can call it within the plotting function
+rich.SC <- metrics.f %>% 
+  ggplot(aes(x = group, y = rich.SC, color = Impact)) + #Instead of hard-coding a factor reorder, you can call it within the plotting function
   geom_boxplot(alpha = 0) +
   geom_point(size = 3) +
-  geom_point(data = longterm, aes(Stream, n.rich.PR), color = "black") + 
+  geom_point(data = longterm, aes(Stream, rich.SC), color = "black") + 
   theme_classic() + #+ #Clean, minimal theme courtesy of the "egg" package
-  xlab("Stream (Spring)") +
-  #ylab("% SC") +
-  stat_compare_means(method = "anova") +
+  xlab("Stream (Fall)") +
+  ylab("Scraper Richness") +
+  stat_compare_means(method = "anova", size = 6) +
   geom_text(data = letters.df.s, 
             aes(x = Stream, y = Placement.Value, label = Letter), 
             color = "black", hjust = -1.25,
-            vjust = -0.8, fontface = "bold")
+            vjust = -0.8, fontface = "bold") +
+  theme(axis.text = element_text(size = 18, color = "black"),
+        axis.title.x =element_text(size = 20, color = "black"),
+        axis.title.y =element_text(size = 20, color = "black"),
+        legend.text=element_text(size=18, color = "black"), 
+        legend.title=element_text(size=20, color = "black"),
+        strip.text.x = element_text(size = 18))
 
-box.f
+rich.SC
+p5dom
 
 library(ggpubr)
 box <- ggarrange(box.f, box.s, ncol = 2, common.legend = TRUE, legend = "bottom" )
@@ -197,10 +212,10 @@ library(FSA) #dunnTest
 longterm <- metrics.s %>%
   filter( Site %in% c("EAS1", "CRO2", "FRY1", "LLW3", "ROL2", "SPC1"))
 
-kruskal.test(n.rich.PR~Stream, data=metrics.s)
+kruskal.test(rich.EPT~Stream, data=metrics.s)
 # less than 0.05 means there are differences among groups
 
-Result = dunnTest(n.rich.PR~Stream, data=metrics.s,
+Result = dunnTest(rich.EPT~Stream, data=metrics.s,
                   method="bonferroni")$res
 
 ### Use multcompView
@@ -214,29 +229,41 @@ colnames(X) <- c("Letters")
 
 placement <- metrics.s %>% #We want to create a dataframe to assign the letter position.
   group_by(Stream) %>%
-  summarise(quantile(n.rich.PR)[4])
+  summarise(quantile(rich.EPT)[4])
 
 colnames(placement)[2] <- "Placement.Value"
 letters.df.s <- cbind(X, placement)
 unique(letters.df.s)
 
-box.s <- metrics.s %>% 
-  ggplot(aes(x = group, y = n.rich.PR, color = Impact)) + #Instead of hard-coding a factor reorder, you can call it within the plotting function
+rich.EPT <- metrics.s %>% 
+  ggplot(aes(x = group, y = rich.EPT, color = Impact)) + #Instead of hard-coding a factor reorder, you can call it within the plotting function
   geom_boxplot(alpha = 0) +
   geom_point(size = 3) +
-  geom_point(data = longterm, aes(Stream, n.rich.PR), color = "black") + 
+  geom_point(data = longterm, aes(Stream, rich.EPT), color = "black") + 
   theme_classic() + #+ #Clean, minimal theme courtesy of the "egg" package
   xlab("Stream (Spring)") +
-  #ylab("VASCI") +
-  stat_compare_means(method = "kruskal") +
+  ylab("Richness EPT") +
+  stat_compare_means(method = "kruskal", size = 6) +
   geom_text(data = letters.df.s, 
             aes(x = Stream, y = Placement.Value, label = Letters), 
             color = "black", hjust = -1.25,
-            vjust = -0.8, fontface = "bold")
-box.s
+            vjust = -0.8, fontface = "bold") +
+  theme(axis.text = element_text(size = 18, color = "black"),
+        axis.title.x =element_text(size = 20, color = "black"),
+        axis.title.y =element_text(size = 20, color = "black"),
+        legend.text=element_text(size=18, color = "black"), 
+        legend.title=element_text(size=20, color = "black"),
+        strip.text.x = element_text(size = 18))
+pE
+rich.E.less.B
+rich.EPT
 
-png("box.krus.peptlessh.xstreamxspring.png")
-plot(box.s)
+plot <- ggarrange(pE, rich.E.less.B, rich.EPT, rich.SC, rich.Cling, p5dom,  
+                  common.legend = TRUE, legend = "right")
+plot
+
+png("box.metric.s.png", width = 1200, height = 750)
+plot(plot)
 dev.off()
 # less than 0.05 means they are different
 
@@ -247,10 +274,10 @@ dev.off()
 longterm <- metrics.f %>%
   filter( Site %in% c("EAS1", "CRO2", "FRY1", "LLW3", "ROL2", "SPC1"))
 
-kruskal.test(pChi~Stream, data=metrics.f)
+kruskal.test(rich.Cling~Stream, data=metrics.f)
 # less than 0.05 means there are differences among groups
 
-Result = dunnTest(n.pSC~Stream, data=metrics.f,
+Result = dunnTest(rich.Cling~Stream, data=metrics.f,
                   method="bonferroni")$res
 
 ### Use multcompView
@@ -264,31 +291,42 @@ colnames(X) <- c("Letters")
 
 placement <- metrics.f %>% #We want to create a dataframe to assign the letter position.
   group_by(Stream) %>%
-  summarise(quantile(n.pSC)[4])
+  summarise(quantile(rich.Cling)[4])
 
 colnames(placement)[2] <- "Placement.Value"
 letters.df.s <- cbind(X, placement)
 unique(letters.df.s)
 
-box.f <- metrics.f %>% 
-  ggplot(aes(x = group, y = n.pSC, color = Impact)) + #Instead of hard-coding a factor reorder, you can call it within the plotting function
+rich.Cling <- metrics.f %>% 
+  ggplot(aes(x = group, y = rich.Cling, color = Impact)) + #Instead of hard-coding a factor reorder, you can call it within the plotting function
   geom_boxplot(alpha = 0) +
   geom_point(size = 3) +
-  geom_point(data = longterm, aes(Stream, n.pSC), color = "black") + 
+  geom_point(data = longterm, aes(Stream, rich.Cling), color = "black") + 
   theme_classic() + #+ #Clean, minimal theme courtesy of the "egg" package
-  xlab("Stream (Spring)") +
-  #ylab("VASCI") +
-  stat_compare_means(method = "kruskal") +
+  xlab("Stream (Fall)") +
+  ylab("RClinger Richness") +
+  stat_compare_means(method = "kruskal", size = 6) +
   geom_text(data = letters.df.s, 
             aes(x = Stream, y = Placement.Value, label = Letters), 
             color = "black", hjust = -1.25,
-            vjust = -0.8, fontface = "bold")
-box.f
+            vjust = -0.8, fontface = "bold") +
+  theme(axis.text = element_text(size = 18, color = "black"),
+        axis.title.x =element_text(size = 20, color = "black"),
+        axis.title.y =element_text(size = 20, color = "black"),
+        legend.text=element_text(size=18, color = "black"), 
+        legend.title=element_text(size=20, color = "black"),
+        strip.text.x = element_text(size = 18))
+pE
+rich.E.less.B
+rich.EPT
+rich.Cling
 
-box <- ggarrange(box.f, box.s, ncol = 2, common.legend = TRUE, legend = "bottom" )
+plot <- ggarrange(pE, rich.E.less.B, rich.EPT, rich.SC, rich.Cling, p5dom,  
+                  common.legend = TRUE, legend = "right")
+plot
 
-png("box.krus+wilcox.scxstreamxseason.png", width = 900, height = 450)
-plot(box)
+png("box.metric.f.png", width = 1800, height = 1000)
+plot(plot)
 dev.off()
 
 # Other

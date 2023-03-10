@@ -192,8 +192,8 @@ bci.mds$stress # cro 0.0588, eas 0.0495, fry 0.0232, llw 0, rol 0.041, spc 0.050
 # colour by island
 ggplot(MDS_xy, aes(MDS1, MDS2)) + geom_point() + theme_bw() + ggtitle('stress:0.0495')
 
-mod.0 <- rda(spe.hel ~ 1, data = met.z)
-mod.1 <- rda(spe.hel ~ ., data = met.z)
+mod.0 <- rda(com.hel ~ 1, data = met.z)
+mod.1 <- rda(com.hel ~ ., data = met.z)
 
 #stepwise selection of the best model
 simpleRDA <- ordiR2step(mod.0, scope = mod.1, R2scope = FALSE)

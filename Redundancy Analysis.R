@@ -3,6 +3,8 @@
 library(vegan)
 library(ggplot2)
 library(tidyverse)
+library(car)
+library("olsrr")
 
 
 com <- read.csv("bugid.csv")  %>%
@@ -12,16 +14,16 @@ com <- read.csv("bugid.csv")  %>%
 com <- com[, colSums(com != 0, na.rm = TRUE) > 0]
 
 chem <- read.csv("chem.pca.csv")%>%
-  filter(season == "Spring") %>%
-#filter(Stream == "SPC (MI)") %>%
-select(-c("Stream", Site:season))
+  filter(Season == "Spring") %>%
+#filter(Site != "EAS1") %>%
+select(-c(Stream:Season))
 chem <- chem[, colSums(chem != 0, na.rm = TRUE) > 0] 
 springrow <-  read.csv("chem.pca.csv") %>%
-  filter(season == "Spring") %>%
+  filter(Season == "Spring") %>%
 select(Stream) 
 
 hab <- read.csv("hab.pca.csv") %>%
-  #filter(Site != "EAS1") #%>%
+  filter(Site != "EAS1") %>%
   select(-c(Stream:Site))
 
 #Examine Community Data
@@ -46,7 +48,7 @@ chem.z <- chem.z %>%
   select_if(~ ! any(is.na(.)))
 
 # check for colliniearity
-library(car)
+#library(car)
 
 pairs(chem.z)
 cor <- cor(chem.z)
@@ -75,18 +77,31 @@ apply(hab.z, 2, sd)
 
 # check for colliniearity
 pairs(hab.z)
+#library("olsrr")
 
-model <- lm(ppebbles ~ ., data = hab.z)
+
+model <- lm(LCF~ ., data = hab.s)
 vif(model)
+ols_coll_diag(model)
 
-alias <- alias( lm(avg.slope ~ ., data = hab.z) )
+alias <- alias( lm(LCF ~ ., data = hab.s) )
 alias
 
-cor <- cor(hab.z)
+cor <- as.data.frame(cor(hab.z))
 cor 
 
 hab.z$Stream <- springrow$Stream
 
+env <- read.csv("env.rda.csv") %>%
+  filter(Season == "Fall") %>%
+  filter(Stream == "LLW (H)") %>%
+  select(-c(Stream, Site, Season))
+
+env.z <- decostand(env, method = "standardize", na.rm =TRUE)
+env.z <- env.z[, colSums(env.z != 0, na.rm = TRUE) > 0]
+
+model <- lm(sc.uScm~ hardness.mgl + avgembedd , data = env.z)
+vif(model)
 
 # VARIATION PARTITIONING
 #### Sokol's Variation partitioning tutorial
@@ -95,8 +110,8 @@ library(sp)
 library(sf)
 
 spring.xy <- read.csv("spring_coord_notrib.csv") %>%
-  filter(Stream == "EAS (R)") %>%
-  filter(Site != "EAS9") %>%
+  filter(Stream == "LLW (MI)") %>%
+  #filter(Site != "EAS9") %>%
   #filter(Site != "FRY8")%>%
   #filter(Site != "FRY9")%>%
   #filter(Site != "ROL7") %>%
@@ -144,27 +159,27 @@ plot(plot, main = "SPC (MI) Spring 2022: PCNM 2")
 dev.off()
 
 com <- read.csv("bugid.csv")  %>%
-  filter(Season == "Fall") %>%
+  filter(Season == "Spring") %>%
   #filter(Site != "EAS1") %>%
-  filter(Stream == "EAS (R)")%>%
+  filter(Stream == "LLW (H)") %>%
   select(-c(Stream:Site))
 com <- com[, colSums(com != 0, na.rm = TRUE) > 0] 
 com.hel <- decostand( com, "hel")
 
 # Space
-d.space <- data.frame( spring.xy, vectors.pcnm)
+d.space <- data.frame( vectors.pcnm)
 #combine all spatial variables, x, y, and PCNMs
 
-d.space.scaled <- data.frame( scale(d.space) ) %>%
-  select(-c(x:y))
+d.space.scaled <- data.frame( scale(d.space) ) 
 #center spatial variables on 0, and standardize
 # null model with intercept
 mod.0 <- rda( com.hel ~ 1, data = d.space.scaled)
 plot(mod.0)
+summary(mod.0)
 
 # model with all spatial variables included
 mod.1 <- rda(com.hel ~ ., data = d.space.scaled)
-summary(mod.1)
+plot(mod.1)
 
 #stepwise selection of the best model
 mod.best <- ordiR2step(rda( com.hel ~1, data = d.space.scaled), scope = formula(mod.1),  
@@ -175,26 +190,24 @@ mod.best <- ordiR2step(rda( com.hel ~1, data = d.space.scaled), scope = formula(
 anova.cca(mod.best)
 RsquareAdj(mod.best)
 
-plot(mod.best)
+summary(mod.best)
+
+spe.scores <- as.data.frame(scores(mod.best, display = "species"))
+site.scores <- as.data.frame(scores(mod.best, display = "sites"))
+
+write.csv(spe.scores, file = "spe.scores.csv")
+write.csv(site.scores, file = "site.scores.csv")
 
 S.keepers <- names( mod.best$terminfo$ordered )
 S.keepers
 
 # Chem
 chem <- read.csv("chem.pca.csv")%>%
-  filter(season == "Fall") %>%
-  filter(Stream == "EAS (R)") %>%
+  filter(Season == "Spring") %>%
+  filter(Stream == "LLW (H)") %>%
   #filter(Site != "ROL7")%>%
   select(do.mgl:elements.pca)# %>%
 #select(-c(elements.pca))
-
-library(Hmisc)
-model <- lm(sc.uScm ~ . , data = chem)
-vif(model)
-alias(model)
-cro <- rcorr(as.matrix(chem), type = "spearman")
-cro.r = data.frame(cro$P) %>%
-  select("sc.uScm")
 
 chem <- chem[, colSums(chem != 0, na.rm = TRUE) > 0] 
 chem.z <- decostand(chem, method = "standardize",  na.rm =TRUE)
@@ -217,14 +230,21 @@ summary(mod.1)
 mod.best <- ordiR2step(mod.0, scope = mod.1, direction = "backward",R2scope = FALSE)
 anova.cca(mod.best)
 RsquareAdj(mod.best)
+mod.best
 
 C.keepers <- names(mod.best$terminfo$ordered)
 C.keepers
 
+spe.scores <- as.data.frame(scores(mod.best, display = "species"))
+site.scores <- as.data.frame(scores(mod.best, display = "sites"))
+
+write.csv(spe.scores, file = "spe.scores.csv")
+write.csv(site.scores, file = "site.scores.csv")
+
 #Habitat
 hab <- read.csv("hab.pca.csv") %>%
-filter(Stream == "EAS (R)") %>%
-  filter(Site != "EAS9") %>%
+filter(Stream == "LLW (H)") %>%
+  #filter(Site != "EAS1") %>%
   #filter(Site != "FRY8")%>%
   #ilter(Site != "FRY9")%>%
   #filter(Site != "ROL7") %>%
@@ -242,11 +262,13 @@ apply(hab.z, 2, sd)
 mod.0 <- rda(com.hel ~ 1, data = hab.z)
 mod.1 <- rda(com.hel ~ ., data = hab.z)
 
+
 #stepwise selection of the best model
 mod.best <- ordiR2step(mod.0, scope = mod.1, direction = "backward",
                        R2scope = FALSE, # can't surpass the "full" model's R2
                        pstep = 1000,
                        trace = FALSE) 
+mod.best
 
 anova.cca(mod.best)
 RsquareAdj(mod.best)
@@ -254,7 +276,11 @@ RsquareAdj(mod.best)
 H.keepers <- names(mod.best$terminfo$ordered)
 H.keepers
 
-mod.best
+spe.scores <- as.data.frame(scores(mod.best, display = "species"))
+site.scores <- as.data.frame(scores(mod.best, display = "sites"))
+
+write.csv(spe.scores, file = "spe.scores.csv")
+write.csv(site.scores, file = "site.scores.csv")
 
 # put them all together
 d.C <- chem.z[,C.keepers]
