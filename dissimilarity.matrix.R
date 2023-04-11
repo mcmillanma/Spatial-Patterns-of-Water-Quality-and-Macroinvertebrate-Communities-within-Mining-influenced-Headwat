@@ -14,8 +14,13 @@ library(ggpubr)
 # Bryan Brown Script
 # Compute similarites by looping to produce independent ID variables and thus ensure that 
 # we get correct correspondence between Distance and Similarity
-bugs <- read.csv("metrics.f21-s22.csv") %>%
-  filter( Season == "Spring")
+bugs <- read.csv("bugid.csv") %>%
+  filter( Season == "Spring") %>%
+  select(c(4:120))
+Site.list <- unique(bugs$Site)
+simall <- vegdist(bugs, method= 'bray', binary=TRUE)
+SIMall <- 1-(as.numeric(simall))
+SIMall <-as.data.frame(SIMall)
 
 Similar <- c()
 Stream.list <- unique(bugs$Stream)

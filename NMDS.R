@@ -63,6 +63,10 @@ stressplot(nmds)
 
 ef <- envfit(nmds, data_1)
 ef
+
+spec.data.envfit <- data.frame(r=ef$vectors$r, p=ef$vectors$pvals)
+species.long2 <- species.long(plot2, spec.data=spec.data.envfit)
+species.long2
 # Note that salinity is NOT significantly correlated with community structure
 
 # Default vegan plot with vector

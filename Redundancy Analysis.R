@@ -108,14 +108,16 @@ vif(model)
 library("geosphere")
 library(sp)
 library(sf)
+library(vegan)
+library(tidyverse)
 
 spring.xy <- read.csv("spring_coord_notrib.csv") %>%
-  filter(Stream == "LLW (MI)") %>%
+  filter(Stream == "ROL (MI)") %>%
   #filter(Site != "EAS9") %>%
   #filter(Site != "FRY8")%>%
   #filter(Site != "FRY9")%>%
   #filter(Site != "ROL7") %>%
-  #filter(Site != "ROL7") %>%
+  #filter(Site != "SPC6") %>%
   select(-c("Stream","Site"))
 
 site.loc.sp = sp::SpatialPointsDataFrame(coords = data.frame(spring.xy$x, 
@@ -152,7 +154,7 @@ vectors.pcnm <- data.frame(mod.pcnm$vectors)
 
 #specified knts, implications?
 
-plot <- ordisurf(spring.xy, scores(mod.pcnm, choi=2), bubble = 4, knots = 7)
+plot <- ordisurf(spring.xy, scores(mod.pcnm, choi=1), bubble = 4, knots = 7)
 
 png("PCNMall.png", width = 600, height = 600)
 plot(plot, main = "SPC (MI) Spring 2022: PCNM 2")
@@ -161,7 +163,7 @@ dev.off()
 com <- read.csv("bugid.csv")  %>%
   filter(Season == "Spring") %>%
   #filter(Site != "EAS1") %>%
-  filter(Stream == "LLW (H)") %>%
+  filter(Stream == "ROL (H)") %>%
   select(-c(Stream:Site))
 com <- com[, colSums(com != 0, na.rm = TRUE) > 0] 
 com.hel <- decostand( com, "hel")
@@ -187,16 +189,16 @@ mod.best <- ordiR2step(rda( com.hel ~1, data = d.space.scaled), scope = formula(
                        R2scope = FALSE, # can't surpass the "full" model's R2
                        pstep = 1000,
                        trace = FALSE)
-anova.cca(mod.best)
+#anova.cca(mod.best)
 RsquareAdj(mod.best)
 
 summary(mod.best)
 
 spe.scores <- as.data.frame(scores(mod.best, display = "species"))
-site.scores <- as.data.frame(scores(mod.best, display = "sites"))
+#site.scores <- as.data.frame(scores(mod.best, display = "sites"))
 
-write.csv(spe.scores, file = "spe.scores.csv")
-write.csv(site.scores, file = "site.scores.csv")
+#write.csv(spe.scores, file = "spe.scores.csv")
+#write.csv(site.scores, file = "site.scores.csv")
 
 S.keepers <- names( mod.best$terminfo$ordered )
 S.keepers
@@ -204,7 +206,7 @@ S.keepers
 # Chem
 chem <- read.csv("chem.pca.csv")%>%
   filter(Season == "Spring") %>%
-  filter(Stream == "LLW (H)") %>%
+  filter(Stream == "ROL (H)") %>%
   #filter(Site != "ROL7")%>%
   select(do.mgl:elements.pca)# %>%
 #select(-c(elements.pca))
@@ -235,18 +237,18 @@ mod.best
 C.keepers <- names(mod.best$terminfo$ordered)
 C.keepers
 
-spe.scores <- as.data.frame(scores(mod.best, display = "species"))
-site.scores <- as.data.frame(scores(mod.best, display = "sites"))
+#spe.scores <- as.data.frame(scores(mod.best, display = "species"))
+#site.scores <- as.data.frame(scores(mod.best, display = "sites"))
 
-write.csv(spe.scores, file = "spe.scores.csv")
-write.csv(site.scores, file = "site.scores.csv")
+#write.csv(spe.scores, file = "spe.scores.csv")
+#write.csv(site.scores, file = "site.scores.csv")
 
 #Habitat
 hab <- read.csv("hab.pca.csv") %>%
-filter(Stream == "LLW (H)") %>%
-  #filter(Site != "EAS1") %>%
+filter(Stream == "ROL (H)") %>%
+  #filter(Site != "EAS9") %>%
   #filter(Site != "FRY8")%>%
-  #ilter(Site != "FRY9")%>%
+  #filter(Site != "FRY9")%>%
   #filter(Site != "ROL7") %>%
   #filter(Site != "SPC6") %>%
   select(-c(Stream:Site)) 
@@ -276,20 +278,21 @@ RsquareAdj(mod.best)
 H.keepers <- names(mod.best$terminfo$ordered)
 H.keepers
 
-spe.scores <- as.data.frame(scores(mod.best, display = "species"))
-site.scores <- as.data.frame(scores(mod.best, display = "sites"))
+#spe.scores <- as.data.frame(scores(mod.best, display = "species"))
+#site.scores <- as.data.frame(scores(mod.best, display = "sites"))
 
-write.csv(spe.scores, file = "spe.scores.csv")
-write.csv(site.scores, file = "site.scores.csv")
+#write.csv(spe.scores, file = "spe.scores.csv")
+#write.csv(site.scores, file = "site.scores.csv")
 
 # put them all together
 d.C <- chem.z[,C.keepers]
 d.S <- d.space.scaled[,S.keepers]
 d.H <- hab.z[,H.keepers]
-all <- varpart(com.hel, d.C,d.H, d.S)
+all <- varpart(com.hel, d.C, d.S, d.H)
 all
 plot(all)
 
+library(sp)
 # [a+b] Chemistry without controlling for topography
 
 S.keepers
@@ -685,7 +688,4 @@ dbRDA <- capscale(com ~ Stream + ca.mg + ba.ugl + mg.mgl + sc.uScm +
 
 dbRDA
 ggord(dbRDA, chem.z$Stream) + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) # looking at the raw code, this is plotting the 'wa scores'
-
-
-
 
