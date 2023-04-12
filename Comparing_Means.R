@@ -73,7 +73,8 @@ leveneTest(n.pSC~Stream, data=metrics.f)
 # https://www.r-bloggers.com/2021/08/how-to-perform-tukey-hsd-test-in-r/
 
 # pE, rich.E.less.B, rich.EPT, rich.SC, rich.Cling, p5dom
-
+# Spring Anova: rich.SC, p5dom, rich.Cling; no transformations
+# Fall Anova: rich.SC, p5dom; no transformations
 leveneTest(n.rich.PR~Stream, data=metrics.s)
 #less than 0.05 means non-parametric (heterogeneity of variance)
 
@@ -273,6 +274,7 @@ dev.off()
 
 longterm <- metrics.f %>%
   filter( Site %in% c("EAS1", "CRO2", "FRY1", "LLW3", "ROL2", "SPC1"))
+
 
 kruskal.test(rich.Cling~Stream, data=metrics.f)
 # less than 0.05 means there are differences among groups
